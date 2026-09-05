@@ -443,24 +443,26 @@ func TestDAGN(t *testing.T) {
 	}
 
 	ctxSemCancel, cancelSem := context.WithCancel(context.Background())
-	var semStarted atomic.Int32
-	semBlockStep := func(ctx context.Context) error {
-		semStarted.Add(1)
-		<-ctx.Done()
-		return ctx.Err()
-	}
-	nBlocker1 := Node("blocker1", semBlockStep)
-	nBlocker2 := Node("blocker2", semBlockStep)
-	nBlocker3 := Node("blocker3", semBlockStep)
+	blocker1Release := make(chan struct{})
+	blocker2Ready := make(chan struct{})
+	nBlocker1 := Node("blocker1", func(ctx context.Context) error {
+		<-blocker1Release
+		return nil
+	})
+	nBlocker2 := Node("blocker2", func(ctx context.Context) error {
+		return nil
+	}).When(func(ctx context.Context) bool {
+		close(blocker2Ready)
+		return true
+	})
 	go func() {
-		for semStarted.Load() < 1 {
-			time.Sleep(1 * time.Millisecond)
-		}
-		time.Sleep(10 * time.Millisecond)
+		<-blocker2Ready
+		time.Sleep(5 * time.Millisecond)
 		cancelSem()
+		close(blocker1Release)
 	}()
-	if err := DAGN(1, nBlocker1, nBlocker2, nBlocker3)(ctxSemCancel); err == nil {
-		t.Fatal("expected cancel error on semaphore acquisition, got nil")
+	if err := DAGN(1, nBlocker1, nBlocker2)(ctxSemCancel); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled on semaphore acquisition, got %v", err)
 	}
 
 	errDepFail := errors.New("upstream failed in DAGN")
@@ -947,26 +949,26 @@ func TestDAGConcurrentFailureStart(t *testing.T) {
 
 func TestDAGNContentionFailure(t *testing.T) {
 	errFail := errors.New("contended failure")
-	var n1Entered atomic.Bool
+	n1Hold := make(chan struct{})
+	n2Waiting := make(chan struct{})
 	n1 := Node("n1", func(ctx context.Context) error {
-		n1Entered.Store(true)
-		time.Sleep(30 * time.Millisecond)
+		<-n1Hold
 		return errFail
 	})
-	waitForN1 := func(ctx context.Context) bool {
-		for !n1Entered.Load() {
-			time.Sleep(1 * time.Millisecond)
-		}
-		return true
-	}
 	n2 := Node("n2", func(ctx context.Context) error {
 		return nil
-	}).When(waitForN1)
-	n3 := Node("n3", func(ctx context.Context) error {
-		return nil
-	}).When(waitForN1)
+	}).When(func(ctx context.Context) bool {
+		close(n2Waiting)
+		return true
+	})
 
-	dagn := DAGN(1, n1, n2, n3)
+	go func() {
+		<-n2Waiting
+		time.Sleep(5 * time.Millisecond)
+		close(n1Hold)
+	}()
+
+	dagn := DAGN(1, n1, n2)
 	err := dagn(context.Background())
 	if !errors.Is(err, errFail) {
 		t.Fatalf("expected %v, got %v", errFail, err)
@@ -985,6 +987,25 @@ func TestDAGNContentionFailure(t *testing.T) {
 	dagnMany := DAGN(2, nodes...)
 	if err := dagnMany(context.Background()); !errors.Is(err, errFail) {
 		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+
+	ctxLateCancel, cancelLate := context.WithCancel(context.Background())
+	nLate1 := Node("late1", func(ctx context.Context) error { return nil })
+	nLate2 := Node("late2", func(ctx context.Context) error {
+		cancelLate()
+		return nil
+	}).After("late1")
+	if err := DAGN(1, nLate1, nLate2)(ctxLateCancel); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled on late cancel in DAGN, got %v", err)
+	}
+
+	ctxLateDAG, cancelLateDAG := context.WithCancel(context.Background())
+	nLateDAG := Node("lateDAG", func(ctx context.Context) error {
+		cancelLateDAG()
+		return nil
+	})
+	if err := DAG(nLateDAG)(ctxLateDAG); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled on late cancel in DAG, got %v", err)
 	}
 }
 

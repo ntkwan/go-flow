@@ -648,13 +648,24 @@ func TestDAGReport(t *testing.T) {
 			t.Fatalf("expected fast error in DAGN, got %v", errN)
 		}
 
+		n1Hold := make(chan struct{})
+		n2Waiting := make(chan struct{})
 		nContend1 := flow.Node("c1", func(ctx context.Context) error {
-			time.Sleep(5 * time.Millisecond)
+			<-n1Hold
 			return errFast
 		})
-		nContend2 := flow.Node("c2", func(ctx context.Context) error { return nil })
-		nContend3 := flow.Node("c3", func(ctx context.Context) error { return nil })
-		repContend, errContend := flow.DAGNWithReport(1, nContend1, nContend2, nContend3)(context.Background())
+		nContend2 := flow.Node("c2", func(ctx context.Context) error {
+			return nil
+		}).When(func(ctx context.Context) bool {
+			close(n2Waiting)
+			return true
+		})
+		go func() {
+			<-n2Waiting
+			time.Sleep(5 * time.Millisecond)
+			close(n1Hold)
+		}()
+		repContend, errContend := flow.DAGNWithReport(1, nContend1, nContend2)(context.Background())
 		if !errors.Is(errContend, errFast) || repContend == nil {
 			t.Fatalf("expected error on contention, got %v", errContend)
 		}
