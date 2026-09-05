@@ -47,8 +47,12 @@ jobs:
 
   format:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-go@v7
         with:
           go-version: '1.27'
@@ -62,8 +66,14 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Documentation Diagrams Sync
-        run: go run ./cmd/gen-diagrams --check
+      - name: Generate Documentation Diagrams
+        run: go run ./cmd/gen-diagrams
+
+      - name: Commit & Push Diagram Updates
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'docs: auto-sync mermaid diagram in readme'
+          file_pattern: 'README.md'
 
   lint:
     runs-on: ubuntu-latest

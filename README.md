@@ -279,7 +279,6 @@ discountNode := flow.Node("calculate-discounts", calculateDiscounts).After("fetc
 paymentNode := flow.Node("process-payment", processPayment).After("calculate-discounts", "fetch-inventory")
 updateInvNode := flow.Node("update-inventory", updateInventory).After("process-payment")
 invoiceNode := flow.Node("generate-invoice", generateInvoice).After("process-payment")
-auditNode := flow.Node("audit-log", auditLog).After("process-payment")
 notifyNode := flow.Node("notify-customer", notifyCustomer).After("generate-invoice")
 dispatchNode := flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory")
 
@@ -291,7 +290,6 @@ plan := flow.NewDAG(
     paymentNode,
     updateInvNode,
     invoiceNode,
-    auditNode,
     notifyNode,
     dispatchNode,
 )
@@ -319,7 +317,6 @@ graph TD
     fetch_inventory["fetch-inventory"] --> process_payment["process-payment"]
     process_payment["process-payment"] --> update_inventory["update-inventory"]
     process_payment["process-payment"] --> generate_invoice["generate-invoice"]
-    process_payment["process-payment"] --> audit_log["audit-log"]
     generate_invoice["generate-invoice"] --> notify_customer["notify-customer"]
     update_inventory["update-inventory"] --> dispatch_warehouse["dispatch-warehouse"]
 ```

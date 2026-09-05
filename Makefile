@@ -42,7 +42,6 @@ check:
 		exit 1; \
 	fi
 	go vet ./...
-	@go run ./cmd/gen-diagrams --check
 
 bench:
 	go test -v -bench=. -benchmem -run=^$$ ./...
