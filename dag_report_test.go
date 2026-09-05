@@ -417,29 +417,22 @@ func TestDAGReport(t *testing.T) {
 		}
 
 		ctxSem, cancelSem := context.WithCancel(context.Background())
-		var enteredBlock atomic.Bool
-		block1 := func(ctx context.Context) error {
-			enteredBlock.Store(true)
+		var semStarted atomic.Int32
+		semBlockStep := func(ctx context.Context) error {
+			semStarted.Add(1)
 			<-ctx.Done()
-			time.Sleep(30 * time.Millisecond)
 			return ctx.Err()
 		}
-		block2 := func(ctx context.Context) error {
-			return nil
-		}
-		block3 := func(ctx context.Context) error {
-			return nil
-		}
 		semExec := flow.DAGNWithReport(1,
-			flow.Node("b1", block1),
-			flow.Node("b2", block2),
-			flow.Node("b3", block3),
+			flow.Node("b1", semBlockStep),
+			flow.Node("b2", semBlockStep),
+			flow.Node("b3", semBlockStep),
 		)
 		go func() {
-			for !enteredBlock.Load() {
+			for semStarted.Load() < 1 {
 				time.Sleep(1 * time.Millisecond)
 			}
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 			cancelSem()
 		}()
 		rep, err = semExec(ctxSem)

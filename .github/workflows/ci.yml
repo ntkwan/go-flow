@@ -154,6 +154,8 @@ jobs:
           echo "Current statement coverage: $COVERAGE%"
           if [ "$COVERAGE" != "100.0" ]; then
             echo "::error::Unit test coverage threshold failure: expected 100.0%, got $COVERAGE%"
+            echo "Uncovered functions / statements:"
+            go tool cover -func=coverage.out | grep -v '100.0%'
             exit 1
           fi
           echo "Coverage check passed (100.0%)"

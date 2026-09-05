@@ -243,6 +243,8 @@ func DAGNWithReport[T context.Context](limit int, nodes ...*DAGNode[T]) func(ctx
 					case <-ctx.Done():
 						reports[idx].Status = NodeStatusFailed
 						reports[idx].Err = ctx.Err()
+						reports[idx].EndTime = time.Now()
+						reports[idx].Duration = reports[idx].EndTime.Sub(reports[idx].StartTime)
 						return
 					case sem <- struct{}{}:
 						defer func() { <-sem }()
