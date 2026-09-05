@@ -1,0 +1,21 @@
+{
+  "config": {
+    "default": true,
+    "MD010": false,
+    "MD013": false,
+    "MD024": false,
+    "MD033": false,
+    "MD041": false
+  },
+  "globs": [
+    "**/*.md"
+  ],
+  "ignores": [
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".gemini/**",
+    "openspec/**",
+    "test/**"
+  ]
+}

@@ -5,13 +5,13 @@ on:
     branches: [ main ]
     paths:
       - '**.md'
-      - '.markdownlint.json'
+      - '.markdownlint-cli2.jsonc'
       - '.github/workflows/markdown.yml'
   pull_request:
     branches: [ main ]
     paths:
       - '**.md'
-      - '.markdownlint.json'
+      - '.markdownlint-cli2.jsonc'
       - '.github/workflows/markdown.yml'
 
 jobs:
@@ -22,9 +22,6 @@ jobs:
 
       - name: Run markdownlint-cli2
         uses: DavidAnson/markdownlint-cli2-action@v19
-        with:
-          globs: '**/*.md'
-          config: '.markdownlint.json'
 
   links:
     runs-on: ubuntu-latest
@@ -34,7 +31,7 @@ jobs:
       - name: Check Broken Links with Lychee
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --verbose --no-progress '**/*.md'
+          args: --verbose --no-progress --exclude-path 'openspec' --exclude-path '.agent' --exclude-path '.claude' '**/*.md'
           fail: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
