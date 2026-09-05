@@ -1,6 +1,6 @@
-.PHONY: all test test-race stress leak cover bdd uat fmt lint lint-actions check bench bench-compare fuzz mutation clean gen
+.PHONY: all test test-race stress leak cover bdd uat fmt lint lint-actions vuln check bench bench-compare fuzz mutation clean gen
 
-all: check lint lint-actions test-race leak bdd
+all: check lint lint-actions vuln test-race leak bdd
 
 gen:
 	cd cmd/gen-diagrams && go run .
@@ -52,6 +52,19 @@ lint-actions:
 		actionlint; \
 	else \
 		echo "actionlint not installed, skipping..."; \
+	fi
+
+vuln:
+	@if command -v govulncheck >/dev/null 2>&1; then \
+		govulncheck ./...; \
+		(cd examples && govulncheck ./...); \
+		(cd cmd/gen-diagrams && govulncheck .); \
+		(cd test && govulncheck ./...); \
+	else \
+		go run golang.org/x/vuln/cmd/govulncheck@latest ./...; \
+		(cd examples && go run golang.org/x/vuln/cmd/govulncheck@latest ./...); \
+		(cd cmd/gen-diagrams && go run golang.org/x/vuln/cmd/govulncheck@latest .); \
+		(cd test && go run golang.org/x/vuln/cmd/govulncheck@latest ./...); \
 	fi
 
 check:

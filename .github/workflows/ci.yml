@@ -92,6 +92,15 @@ jobs:
           (cd examples && "$GOPATH/bin/golangci-lint" run ./...)
           (cd cmd/gen-diagrams && "$GOPATH/bin/golangci-lint" run ./...)
           (cd test && "$GOPATH/bin/golangci-lint" run ./...)
+      - name: Run Govulncheck
+        shell: bash
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOPATH=$(go env GOPATH)
+          "$GOPATH/bin/govulncheck" ./...
+          (cd examples && "$GOPATH/bin/govulncheck" ./...)
+          (cd cmd/gen-diagrams && "$GOPATH/bin/govulncheck" .)
+          (cd test && "$GOPATH/bin/govulncheck" ./...)
 
   test:
     runs-on: ${{ matrix.os }}
