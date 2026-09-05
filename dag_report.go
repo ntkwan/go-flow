@@ -176,10 +176,6 @@ func DAGWithReport[T context.Context](nodes ...*DAGNode[T]) func(ctx T) (*DAGRep
 			}
 			reports[idx].Status = NodeStatusSuccess
 
-			if failed.Load() || ctx.Err() != nil {
-				return
-			}
-
 			for _, dep := range compiled[idx].dependents {
 				if inDegrees[dep].Add(-1) == 0 {
 					wg.Add(1)
@@ -327,10 +323,6 @@ func DAGNWithReport[T context.Context](limit int, nodes ...*DAGNode[T]) func(ctx
 				reports[idx].Duration = reports[idx].EndTime.Sub(reports[idx].StartTime)
 			}
 			reports[idx].Status = NodeStatusSuccess
-
-			if failed.Load() || ctx.Err() != nil {
-				return
-			}
 
 			for _, dep := range compiled[idx].dependents {
 				if inDegrees[dep].Add(-1) == 0 {

@@ -334,10 +334,6 @@ func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 				}
 			}
 
-			if failed.Load() || ctx.Err() != nil {
-				return
-			}
-
 			for _, dep := range compiled[idx].dependents {
 				if state[dep].inDegree.Add(-1) == 0 {
 					wg.Add(1)
@@ -439,10 +435,6 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 					return
 				}
 				<-sem
-			}
-
-			if failed.Load() || ctx.Err() != nil {
-				return
 			}
 
 			for _, dep := range compiled[idx].dependents {
