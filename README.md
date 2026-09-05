@@ -269,10 +269,20 @@ boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
 
 *See runnable example: [`examples/order_checkout/with_flow`](examples/order_checkout/with_flow/main.go) vs [`examples/order_checkout/without_flow`](examples/order_checkout/without_flow/main.go)*
 
-Generate Mermaid diagrams or Graphviz DOT graphs for documentation, visual telemetry, and debugging:
+Generate Mermaid markdown diagrams or Graphviz DOT graphs directly from Go code for documentation, live telemetry, and debugging:
 
 ```go
-plan := flow.NewDAG(userNode, cartNode, paymentNode, receiptNode)
+plan := flow.NewDAG(
+	flow.Node("validate-order", validateOrder),
+	flow.Node("fetch-user", fetchUser).After("validate-order"),
+	flow.Node("fetch-inventory", fetchInventory).After("validate-order"),
+	flow.Node("calculate-discounts", calculateDiscounts).After("fetch-user"),
+	flow.Node("process-payment", processPayment).After("calculate-discounts", "fetch-inventory"),
+	flow.Node("update-inventory", updateInventory).After("process-payment"),
+	flow.Node("generate-invoice", generateInvoice).After("process-payment"),
+	flow.Node("notify-customer", notifyCustomer).After("generate-invoice"),
+	flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory"),
+)
 
 // Export to Mermaid markdown syntax
 mermaid, err := plan.ToMermaid()
@@ -283,8 +293,6 @@ dot, err := plan.ToDOT()
 
 // Execute as Step[T] or bounded Step[T]
 pipeline := plan.Step()
-// Or with concurrency limit:
-// pipeline := plan.StepN(2)
 ```
 
 **Generated Mermaid Diagram:**
@@ -292,9 +300,15 @@ pipeline := plan.Step()
 <!-- AUTO-GENERATED-DAG:START -->
 ```mermaid
 graph TD
-    fetch_user["fetch-user"] --> process_payment["process-payment"]
-    fetch_cart["fetch-cart"] --> process_payment["process-payment"]
-    process_payment["process-payment"] --> send_receipt["send-receipt"]
+    validate_order["validate-order"] --> fetch_user["fetch-user"]
+    validate_order["validate-order"] --> fetch_inventory["fetch-inventory"]
+    fetch_user["fetch-user"] --> calculate_discounts["calculate-discounts"]
+    calculate_discounts["calculate-discounts"] --> process_payment["process-payment"]
+    fetch_inventory["fetch-inventory"] --> process_payment["process-payment"]
+    process_payment["process-payment"] --> update_inventory["update-inventory"]
+    process_payment["process-payment"] --> generate_invoice["generate-invoice"]
+    generate_invoice["generate-invoice"] --> notify_customer["notify-customer"]
+    update_inventory["update-inventory"] --> dispatch_warehouse["dispatch-warehouse"]
 ```
 <!-- AUTO-GENERATED-DAG:END -->
 

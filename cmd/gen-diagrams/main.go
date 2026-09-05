@@ -10,12 +10,27 @@ import (
 )
 
 func buildShowcasePlan() (*flow.DAGPlan[context.Context], error) {
-	fetchUser := flow.Node("fetch-user", func(ctx context.Context) error { return nil })
-	fetchCart := flow.Node("fetch-cart", func(ctx context.Context) error { return nil })
-	processPayment := flow.Node("process-payment", func(ctx context.Context) error { return nil }).After("fetch-user", "fetch-cart")
-	sendReceipt := flow.Node("send-receipt", func(ctx context.Context) error { return nil }).After("process-payment")
+	validateNode := flow.Node("validate-order", func(ctx context.Context) error { return nil })
+	userNode := flow.Node("fetch-user", func(ctx context.Context) error { return nil }).After("validate-order")
+	inventoryNode := flow.Node("fetch-inventory", func(ctx context.Context) error { return nil }).After("validate-order")
+	discountNode := flow.Node("calculate-discounts", func(ctx context.Context) error { return nil }).After("fetch-user")
+	paymentNode := flow.Node("process-payment", func(ctx context.Context) error { return nil }).After("calculate-discounts", "fetch-inventory")
+	updateInvNode := flow.Node("update-inventory", func(ctx context.Context) error { return nil }).After("process-payment")
+	invoiceNode := flow.Node("generate-invoice", func(ctx context.Context) error { return nil }).After("process-payment")
+	notifyNode := flow.Node("notify-customer", func(ctx context.Context) error { return nil }).After("generate-invoice")
+	dispatchNode := flow.Node("dispatch-warehouse", func(ctx context.Context) error { return nil }).After("update-inventory")
 
-	return flow.NewDAG(fetchUser, fetchCart, processPayment, sendReceipt), nil
+	return flow.NewDAG(
+		validateNode,
+		userNode,
+		inventoryNode,
+		discountNode,
+		paymentNode,
+		updateInvNode,
+		invoiceNode,
+		notifyNode,
+		dispatchNode,
+	), nil
 }
 
 func syncMermaidDiagram(readmePath, startTag, endTag, mermaid string, checkOnly bool) error {
