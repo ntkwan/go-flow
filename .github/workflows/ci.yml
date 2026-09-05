@@ -96,12 +96,7 @@ jobs:
         run: go build ./...
 
       - name: Run Tests with Race Detector
-        if: runner.os != 'Windows'
         run: go test -v -race ./...
-
-      - name: Run Tests (Windows)
-        if: runner.os == 'Windows'
-        run: go test -v ./...
 
       - name: Run Goroutine Leak Detection
         shell: bash
@@ -116,8 +111,11 @@ jobs:
           go test -v ./...
 
       - name: Run Fuzz Smoke Tests
-        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.27'
-        run: make fuzz
+        shell: bash
+        run: |
+          go test -fuzz=FuzzDAG -fuzztime=3s ./test/fuzz
+          go test -fuzz=FuzzChunk -fuzztime=3s ./test/fuzz
+          go test -fuzz=FuzzPipeSeq -fuzztime=3s ./test/fuzz
 
       - name: Enforce 100% Coverage Threshold
         shell: bash
