@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 (2026-09-05)
+
+### Features
+
+* add conditional branching combinator `flow.Branch` and `(s Step[T]) Branch(...)`
+* add typed functional value streaming and composition (`flow.Pipe`, `flow.PipeSeq`, `flow.PipeSeq2`, `flow.Pipe2`, `flow.Pipe3`)
+
 ## 0.1.0 (2026-09-05)
 
 ### Features
