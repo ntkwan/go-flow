@@ -160,6 +160,7 @@ graph TD
 | `DAG` / `DAGN` | Runs steps according to a directed dependency graph. | [Guide](GETTING_STARTED.md#9-dependency-graphs-dag) · [Example](examples/dag/1_named_nodes/with_flow/main.go) |
 | `DAGWithReport` | Executes DAG and collects per-node latency, status, and telemetry. | [Guide](GETTING_STARTED.md#7-dag-execution-reports--observability) · [Example](examples/dag/6_conditional_and_report/main.go) |
 | `Branch` / `When` | Runs steps conditionally based on runtime context. | [Guide](GETTING_STARTED.md#5-conditional-execution-branch-when-unless) · [Example](examples/branch/with_flow/main.go) |
+| `Dynamic` / `.Dynamic()` | Resolves and evaluates execution steps lazily at runtime. | [Guide](GETTING_STARTED.md#5-conditional-execution-branch-when-unless-dynamic) · [Example](examples/dynamic/with_flow/main.go) |
 | `Pipe` / `PipeSeq` | Transforms typed values across steps and iterators. | [Guide](GETTING_STARTED.md#6-functional-piping-pipe-pipeseq) · [Example](examples/pipe/with_flow/main.go) |
 | `Each` / `Chunk` | Iterates over Go 1.23+ `iter.Seq` sequences or batches slices. | [Guide](GETTING_STARTED.md#7-iterators--batching-each-chunk) · [Example](examples/each/with_flow/main.go) |
 | `Once` / `.Once()` | Ensures a step executes at most once across parallel branches. | [Guide](GETTING_STARTED.md#8-idempotent-execution-once) · [Example](examples/once/with_flow/main.go) |
@@ -174,10 +175,11 @@ graph TD
 ## Documentation & Examples
 
 - **[GETTING_STARTED.md](GETTING_STARTED.md)**: Full guide, step-by-step tutorials, and patterns.
-- **[`examples/`](examples/)**: 14+ runnable side-by-side examples comparing standard Go with `go-flow`.
+- **[`examples/`](examples/)**: 15+ runnable side-by-side examples comparing standard Go with `go-flow`.
 
 ---
 
 ## License
 
 MIT License
+

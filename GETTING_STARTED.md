@@ -11,7 +11,7 @@ A step-by-step guide to building structured concurrency workflows and dependency
 - [2. Sequential Execution (`Seq`)](#2-sequential-execution-seq)
 - [3. Concurrent Execution (`Go` and `GoN`)](#3-concurrent-execution-go-and-gon)
 - [4. Speculative Racing (`Race`)](#4-speculative-racing-race)
-- [5. Conditional Execution (`Branch`, `When`, `Unless`)](#5-conditional-execution-branch-when-unless)
+- [5. Conditional & Dynamic Execution (`Branch`, `When`, `Unless`, `Dynamic`)](#5-conditional--dynamic-execution-branch-when-unless-dynamic)
 - [6. Functional Piping (`Pipe`, `PipeSeq`)](#6-functional-piping-pipe-pipeseq)
 - [7. Iterators & Batching (`Each`, `Chunk`)](#7-iterators--batching-each-chunk)
 - [8. Idempotent Execution (`Once`)](#8-idempotent-execution-once)
@@ -181,25 +181,33 @@ if err := fastest(ctx); err != nil {
 
 ---
 
-## 5. Conditional Execution (`Branch`, `When`, `Unless`)
+## 5. Conditional & Dynamic Execution (`Branch`, `When`, `Unless`, `Dynamic`)
 
-Route workflow execution dynamically based on runtime context state:
+Route workflow execution conditionally or evaluate steps lazily based on runtime context state:
 
 ```go
 // Standalone Branch combinator
 evalRisk := flow.Branch(
- func(ctx *OrderContext) bool { return ctx.Total > 100000 },
- manualReviewStep, // Executed when predicate is true
- autoApproveStep,  // Executed when predicate is false
+    func(ctx *OrderContext) bool { return ctx.Total > 100000 },
+    manualReviewStep, // Executed when predicate is true
+    autoApproveStep,  // Executed when predicate is false
 )
 
 // Fluent .When() and .Unless()
 vipNotification := sendVIPGiftStep.When(func(ctx *OrderContext) bool {
- return ctx.IsVIP
+    return ctx.IsVIP
+})
+
+// Dynamic lazy step selection
+dynamicWorkflow := flow.Dynamic(func(ctx *OrderContext) flow.Step[*OrderContext] {
+    if ctx.IsVIP {
+        return vipProcessingPipeline
+    }
+    return standardProcessingPipeline
 })
 ```
 
-*See runnable comparison: [`examples/branch/with_flow`](examples/branch/with_flow/main.go) vs [`examples/branch/without_flow`](examples/branch/without_flow/main.go)*
+*See runnable comparisons: [`examples/branch/with_flow`](examples/branch/with_flow/main.go) vs [`examples/branch/without_flow`](examples/branch/without_flow/main.go) · [`examples/dynamic/with_flow`](examples/dynamic/with_flow/main.go) vs [`examples/dynamic/without_flow`](examples/dynamic/without_flow/main.go)*
 
 ---
 
@@ -519,6 +527,7 @@ Every combinator includes complete, side-by-side comparative implementations sho
 | **DAG (Visual Export)** | [`examples/dag/5_visual_export/with_flow`](examples/dag/5_visual_export/with_flow/main.go) | — |
 | **Order Checkout Workflow** | [`examples/order_checkout/with_flow`](examples/order_checkout/with_flow/main.go) | [`examples/order_checkout/without_flow`](examples/order_checkout/without_flow/main.go) |
 | **Branching (`Branch`)** | [`examples/branch/with_flow`](examples/branch/with_flow/main.go) | [`examples/branch/without_flow`](examples/branch/without_flow/main.go) |
+| **Dynamic Branching (`Dynamic`)** | [`examples/dynamic/with_flow`](examples/dynamic/with_flow/main.go) | [`examples/dynamic/without_flow`](examples/dynamic/without_flow/main.go) |
 | **Piping & Streams (`Pipe`)** | [`examples/pipe/with_flow`](examples/pipe/with_flow/main.go) | [`examples/pipe/without_flow`](examples/pipe/without_flow/main.go) |
 | **Retry Combinator** | [`examples/retry/with_flow`](examples/retry/with_flow/main.go) | [`examples/retry/without_flow`](examples/retry/without_flow/main.go) |
 | **Timeout Combinator** | [`examples/timeout/with_flow`](examples/timeout/with_flow/main.go) | [`examples/timeout/without_flow`](examples/timeout/without_flow/main.go) |

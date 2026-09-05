@@ -31,6 +31,10 @@ type compositionContext struct {
 	pipeOutput       string
 	streamItems      []int
 	streamResults    []int
+	dynamicStep      flow.Step[context.Context]
+	dynamicExecuted  bool
+	fluentExecuted   bool
+	dynamicErr       error
 }
 
 func newCompositionContext() *compositionContext {
@@ -424,6 +428,102 @@ func (c *compositionContext) thePipeStreamExecutionSucceeds() error {
 	return c.theChainedExecutionSucceeds()
 }
 
+func (c *compositionContext) aDynamicStepFactoryResolvingToASuccessfulBranch() error {
+	c.dynamicExecuted = false
+	c.dynamicStep = flow.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+		return func(ctx context.Context) error {
+			c.dynamicExecuted = true
+			return nil
+		}
+	})
+	return nil
+}
+
+func (c *compositionContext) theDynamicStepIsExecuted() error {
+	c.dynamicErr = c.dynamicStep(context.Background())
+	return nil
+}
+
+func (c *compositionContext) theSelectedBranchExecutes() error {
+	if !c.dynamicExecuted {
+		return errors.New("expected dynamic branch to execute")
+	}
+	return nil
+}
+
+func (c *compositionContext) theDynamicExecutionSucceeds() error {
+	if c.dynamicErr != nil {
+		return fmt.Errorf("expected success, got: %w", c.dynamicErr)
+	}
+	return nil
+}
+
+func (c *compositionContext) aDynamicStepFactoryResolvingToAFailingBranchWith(errMsg string) error {
+	c.dynamicStep = flow.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+		return func(ctx context.Context) error {
+			return errors.New(errMsg)
+		}
+	})
+	return nil
+}
+
+func (c *compositionContext) theDynamicExecutionFailsWith(errMsg string) error {
+	if c.dynamicErr == nil {
+		return errors.New("expected error, got nil")
+	}
+	if !strings.Contains(c.dynamicErr.Error(), errMsg) {
+		return fmt.Errorf("expected error containing %q, got: %w", errMsg, c.dynamicErr)
+	}
+	return nil
+}
+
+func (c *compositionContext) aDynamicStepFactoryReturningNil() error {
+	c.dynamicStep = flow.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+		return nil
+	})
+	return nil
+}
+
+func (c *compositionContext) theDynamicExecutionSucceedsAsANoOp() error {
+	return c.theDynamicExecutionSucceeds()
+}
+
+func (c *compositionContext) aDynamicCombinatorWithNilFactory() error {
+	c.dynamicStep = flow.Dynamic[context.Context](nil)
+	return nil
+}
+
+func (c *compositionContext) aPrimaryStepChainedWithFluentDynamicStep() error {
+	c.primaryExecuted = false
+	c.fluentExecuted = false
+	primary := flow.Step[context.Context](func(ctx context.Context) error {
+		c.primaryExecuted = true
+		return nil
+	})
+	c.dynamicStep = primary.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+		return func(ctx context.Context) error {
+			c.fluentExecuted = true
+			return nil
+		}
+	})
+	return nil
+}
+
+func (c *compositionContext) theFluentDynamicStepIsExecuted() error {
+	return c.theDynamicStepIsExecuted()
+}
+
+func (c *compositionContext) bothThePrimaryStepAndDynamicStepExecuteInOrder() error {
+	if !c.primaryExecuted || !c.fluentExecuted {
+		return fmt.Errorf("expected both primary and dynamic step to execute, primary: %v, dynamic: %v", c.primaryExecuted, c.fluentExecuted)
+	}
+	return nil
+}
+
+func (c *compositionContext) theFluentDynamicExecutionSucceeds() error {
+	return c.theDynamicExecutionSucceeds()
+}
+
 func registerCompositionSteps(ctx *godog.ScenarioContext) {
 	c := newCompositionContext()
 
@@ -474,4 +574,18 @@ func registerCompositionSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the stream is piped through double transform$`, c.theStreamIsPipedThroughDoubleTransform)
 	ctx.Step(`^(\d+) transformed items are collected in order$`, c.transformedItemsAreCollectedInOrder)
 	ctx.Step(`^the pipe stream execution succeeds$`, c.thePipeStreamExecutionSucceeds)
+
+	ctx.Step(`^a dynamic step factory resolving to a successful branch$`, c.aDynamicStepFactoryResolvingToASuccessfulBranch)
+	ctx.Step(`^the dynamic step is executed$`, c.theDynamicStepIsExecuted)
+	ctx.Step(`^the selected branch executes$`, c.theSelectedBranchExecutes)
+	ctx.Step(`^the dynamic execution succeeds$`, c.theDynamicExecutionSucceeds)
+	ctx.Step(`^a dynamic step factory resolving to a failing branch with "([^"]*)"$`, c.aDynamicStepFactoryResolvingToAFailingBranchWith)
+	ctx.Step(`^the dynamic execution fails with "([^"]*)"$`, c.theDynamicExecutionFailsWith)
+	ctx.Step(`^a dynamic step factory returning nil$`, c.aDynamicStepFactoryReturningNil)
+	ctx.Step(`^the dynamic execution succeeds as a no-op$`, c.theDynamicExecutionSucceedsAsANoOp)
+	ctx.Step(`^a dynamic combinator with nil factory$`, c.aDynamicCombinatorWithNilFactory)
+	ctx.Step(`^a primary step chained with fluent Dynamic step$`, c.aPrimaryStepChainedWithFluentDynamicStep)
+	ctx.Step(`^the fluent dynamic step is executed$`, c.theFluentDynamicStepIsExecuted)
+	ctx.Step(`^both the primary step and dynamic step execute in order$`, c.bothThePrimaryStepAndDynamicStepExecuteInOrder)
+	ctx.Step(`^the fluent dynamic execution succeeds$`, c.theFluentDynamicExecutionSucceeds)
 }

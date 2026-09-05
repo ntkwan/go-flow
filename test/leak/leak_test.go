@@ -130,4 +130,11 @@ func TestLeakWorkflows(t *testing.T) {
 		)
 		_ = pipeStep(ctx)
 	})
+
+	t.Run("Dynamic execution", func(t *testing.T) {
+		s := flow.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+			return func(ctx context.Context) error { return nil }
+		})
+		_ = s(ctx)
+	})
 }

@@ -144,3 +144,19 @@ func TestAllocDAGBudget(t *testing.T) {
 		t.Fatalf("expected <= 15 allocs/op for 3-node DAG, got %f", allocs)
 	}
 }
+
+func TestAllocDynamicZeroAlloc(t *testing.T) {
+	inner := flow.Step[context.Context](func(ctx context.Context) error { return nil })
+	step := flow.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+		return inner
+	})
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = step(ctx)
+	})
+
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocs/op for Dynamic, got %f", allocs)
+	}
+}

@@ -119,3 +119,19 @@ func BenchmarkBranch(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkDynamic(b *testing.B) {
+	inner := flow.Step[context.Context](func(ctx context.Context) error { return nil })
+	step := flow.Dynamic(func(ctx context.Context) flow.Step[context.Context] {
+		return inner
+	})
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := step(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

@@ -55,6 +55,19 @@ func Branch[T context.Context](condition func(ctx T) bool, ifBranch, elseBranch 
 	}
 }
 
+func Dynamic[T context.Context](fn func(ctx T) Step[T]) Step[T] {
+	return func(ctx T) error {
+		if fn == nil {
+			return nil
+		}
+		step := fn(ctx)
+		if step == nil {
+			return nil
+		}
+		return step(ctx)
+	}
+}
+
 func (s Step[T]) Exec(ctx T) error {
 	if s == nil {
 		return nil
@@ -229,6 +242,10 @@ func (s Step[T]) Unless(predicate func(ctx T) bool) Step[T] {
 
 func (s Step[T]) Branch(condition func(ctx T) bool, ifBranch, elseBranch Step[T]) Step[T] {
 	return s.Then(Branch(condition, ifBranch, elseBranch))
+}
+
+func (s Step[T]) Dynamic(fn func(ctx T) Step[T]) Step[T] {
+	return s.Then(Dynamic(fn))
 }
 
 type Middleware[T context.Context] func(next Step[T]) Step[T]

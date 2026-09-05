@@ -824,3 +824,110 @@ func BenchmarkBranch(b *testing.B) {
 		_ = step(ctx)
 	}
 }
+
+func TestDynamic(t *testing.T) {
+	type userCtx struct {
+		context.Context
+		role string
+	}
+
+	adminRan := false
+	memberRan := false
+
+	adminStep := Step[*userCtx](func(ctx *userCtx) error {
+		adminRan = true
+		return nil
+	})
+	memberStep := Step[*userCtx](func(ctx *userCtx) error {
+		memberRan = true
+		return nil
+	})
+
+	dynStep := Dynamic(func(ctx *userCtx) Step[*userCtx] {
+		if ctx.role == "admin" {
+			return adminStep
+		}
+		return memberStep
+	})
+
+	ctxAdmin := &userCtx{Context: context.Background(), role: "admin"}
+	if err := dynStep(ctxAdmin); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if !adminRan || memberRan {
+		t.Fatalf("expected only adminStep to run, adminRan=%v memberRan=%v", adminRan, memberRan)
+	}
+
+	adminRan = false
+	memberRan = false
+
+	ctxMember := &userCtx{Context: context.Background(), role: "member"}
+	if err := dynStep(ctxMember); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if adminRan || !memberRan {
+		t.Fatalf("expected only memberStep to run, adminRan=%v memberRan=%v", adminRan, memberRan)
+	}
+}
+
+func TestDynamicNil(t *testing.T) {
+	nilFnStep := Dynamic[context.Context](nil)
+	if err := nilFnStep(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil factory, got %v", err)
+	}
+
+	nilStepReturned := Dynamic(func(ctx context.Context) Step[context.Context] {
+		return nil
+	})
+	if err := nilStepReturned(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil step returned, got %v", err)
+	}
+}
+
+func TestDynamicError(t *testing.T) {
+	errExpected := errors.New("dynamic evaluation failed")
+	step := Dynamic(func(ctx context.Context) Step[context.Context] {
+		return func(ctx context.Context) error {
+			return errExpected
+		}
+	})
+
+	err := step(context.Background())
+	if !errors.Is(err, errExpected) {
+		t.Fatalf("expected %v, got %v", errExpected, err)
+	}
+}
+
+func TestStepDynamic(t *testing.T) {
+	var trace []string
+	step := Step[context.Context](func(ctx context.Context) error {
+		trace = append(trace, "init")
+		return nil
+	}).Dynamic(func(ctx context.Context) Step[context.Context] {
+		return func(ctx context.Context) error {
+			trace = append(trace, "dynamic")
+			return nil
+		}
+	})
+
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(trace) != 2 || trace[0] != "init" || trace[1] != "dynamic" {
+		t.Fatalf("unexpected trace: %v", trace)
+	}
+}
+
+func BenchmarkDynamic(b *testing.B) {
+	inner := Step[context.Context](func(ctx context.Context) error { return nil })
+	step := Dynamic(func(ctx context.Context) Step[context.Context] {
+		return inner
+	})
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = step(ctx)
+	}
+}
