@@ -70,4 +70,9 @@ jobs:
           go-version: ${{ matrix.go-version }}
           check-latest: true
       - name: Run Tests with Race Detector
+        if: runner.os != 'Windows'
         run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Run Tests (Windows)
+        if: runner.os == 'Windows'
+        run: go test -v ./...
