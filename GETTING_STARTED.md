@@ -425,7 +425,7 @@ graph TD
 ```
 <!-- AUTO-GENERATED-DAG:END -->
 
-*See runnable comparison: [`examples/dag/with_flow`](examples/dag/with_flow/main.go) vs [`examples/dag/without_flow`](examples/dag/without_flow/main.go)*
+*See runnable comparisons under [`examples/dag/`](examples/dag/): [`1_named_nodes`](examples/dag/1_named_nodes/with_flow/main.go), [`2_fluent_edges`](examples/dag/2_fluent_edges/with_flow/main.go), [`3_resilient_composite`](examples/dag/3_resilient_composite/with_flow/main.go), [`4_bounded_concurrency`](examples/dag/4_bounded_concurrency/with_flow/main.go), [`5_visual_export`](examples/dag/5_visual_export/with_flow/main.go)*
 
 ---
 
@@ -483,7 +483,11 @@ Every combinator includes complete, side-by-side comparative implementations sho
 | **Parallel (`Go`)** | [`examples/go/with_flow`](examples/go/with_flow/main.go) | [`examples/go/without_flow`](examples/go/without_flow/main.go) |
 | **Bounded Concurrency (`GoN`)** | [`examples/gon/with_flow`](examples/gon/with_flow/main.go) | [`examples/gon/without_flow`](examples/gon/without_flow/main.go) |
 | **Speculative Racing (`Race`)** | [`examples/race/with_flow`](examples/race/with_flow/main.go) | [`examples/race/without_flow`](examples/race/without_flow/main.go) |
-| **Directed Acyclic Graph (`DAG`)** | [`examples/dag/with_flow`](examples/dag/with_flow/main.go) | [`examples/dag/without_flow`](examples/dag/without_flow/main.go) |
+| **DAG (Named Nodes)** | [`examples/dag/1_named_nodes/with_flow`](examples/dag/1_named_nodes/with_flow/main.go) | [`examples/dag/1_named_nodes/without_flow`](examples/dag/1_named_nodes/without_flow/main.go) |
+| **DAG (Fluent Edges)** | [`examples/dag/2_fluent_edges/with_flow`](examples/dag/2_fluent_edges/with_flow/main.go) | [`examples/dag/2_fluent_edges/without_flow`](examples/dag/2_fluent_edges/without_flow/main.go) |
+| **DAG (Resilient Composite)** | [`examples/dag/3_resilient_composite/with_flow`](examples/dag/3_resilient_composite/with_flow/main.go) | [`examples/dag/3_resilient_composite/without_flow`](examples/dag/3_resilient_composite/without_flow/main.go) |
+| **DAG (Bounded Concurrency)** | [`examples/dag/4_bounded_concurrency/with_flow`](examples/dag/4_bounded_concurrency/with_flow/main.go) | [`examples/dag/4_bounded_concurrency/without_flow`](examples/dag/4_bounded_concurrency/without_flow/main.go) |
+| **DAG (Visual Export)** | [`examples/dag/5_visual_export/with_flow`](examples/dag/5_visual_export/with_flow/main.go) | — |
 | **Order Checkout Workflow** | [`examples/order_checkout/with_flow`](examples/order_checkout/with_flow/main.go) | [`examples/order_checkout/without_flow`](examples/order_checkout/without_flow/main.go) |
 | **Branching (`Branch`)** | [`examples/branch/with_flow`](examples/branch/with_flow/main.go) | [`examples/branch/without_flow`](examples/branch/without_flow/main.go) |
 | **Piping & Streams (`Pipe`)** | [`examples/pipe/with_flow`](examples/pipe/with_flow/main.go) | [`examples/pipe/without_flow`](examples/pipe/without_flow/main.go) |
