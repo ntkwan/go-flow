@@ -1,0 +1,44 @@
+name: Bug Report
+description: Create a report to help us improve go-flow
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal Reproduction Example
+      description: Provide a minimal Go code sample reproducing the issue.
+      render: go
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear description of what you expected to happen.
+    validations:
+      required: true
+  - type: input
+    id: go-version
+    attributes:
+      label: Go Version
+      placeholder: "e.g., go version go1.27 darwin/arm64"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "e.g., macOS / Ubuntu / Windows"
+    validations:
+      required: true
