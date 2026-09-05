@@ -20,7 +20,7 @@ jobs:
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run markdownlint-cli2
         uses: DavidAnson/markdownlint-cli2-action@v19
@@ -28,7 +28,7 @@ jobs:
   links:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check Broken Links with Lychee
         uses: lycheeverse/lychee-action@v2
@@ -41,7 +41,7 @@ jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check Spelling and Typos
         uses: crate-ci/typos@master
