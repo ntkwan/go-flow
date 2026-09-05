@@ -486,7 +486,6 @@ func TestStepMethodRecover(t *testing.T) {
 
 	panicErrStep := Step[context.Context](func(ctx context.Context) error {
 		panic(errors.New("panic error"))
-		return nil
 	}).Recover()
 
 	err := panicErrStep(context.Background())
@@ -496,7 +495,6 @@ func TestStepMethodRecover(t *testing.T) {
 
 	panicStrStep := Step[context.Context](func(ctx context.Context) error {
 		panic("panic string")
-		return nil
 	}).Recover()
 
 	if err := panicStrStep(context.Background()); err == nil {

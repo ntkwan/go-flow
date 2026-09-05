@@ -56,9 +56,9 @@ jobs:
       - name: Run Static Analysis
         run: go vet ./...
       - name: Run GolangCI-Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          $(go env GOPATH)/bin/golangci-lint run ./...
 
   test:
     runs-on: ${{ matrix.os }}
