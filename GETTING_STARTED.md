@@ -16,11 +16,13 @@ A step-by-step guide to building structured concurrency workflows and dependency
 - [7. Iterators & Batching (`Each`, `Chunk`)](#7-iterators--batching-each-chunk)
 - [8. Idempotent Execution (`Once`)](#8-idempotent-execution-once)
 - [9. Dependency Graphs (`DAG`)](#9-dependency-graphs-dag)
-  - [Pure Function Edges (`From.To` / `Edge`)](#pure-function-edges-fromto--edge)
-  - [Named Nodes (`Node` + `After`)](#named-nodes-node--after)
-  - [Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN`)](#bounded-concurrency-dags-dagn--dagedgesn)
-  - [Pre-Execution Validation & Cycle Path Tracing](#pre-execution-validation--cycle-path-tracing)
-  - [Visual Graph Export (Mermaid & Graphviz DOT)](#visual-graph-export-mermaid--graphviz-dot)
+  - [1. Named Nodes (`Node` + `After`)](#1-named-nodes-node--after)
+  - [2. Pure Function Edges (`From.To`)](#2-pure-function-edges-fromto)
+  - [3. Pairwise Edge Helper (`Edge`)](#3-pairwise-edge-helper-edge)
+  - [4. Pre-Execution Validation & Cycle Path Tracing](#4-pre-execution-validation--cycle-path-tracing)
+  - [5. Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN` / `StepN`)](#5-bounded-concurrency-dags-dagn--dagedgesn--stepn)
+  - [6. Composite & Resilient DAG Nodes](#6-composite--resilient-dag-nodes)
+  - [7. Visual Graph Export (Mermaid & Graphviz DOT)](#7-visual-graph-export-mermaid--graphviz-dot)
 - [10. Custom Contexts](#10-custom-contexts)
 - [Examples Catalog](#examples-catalog)
 
@@ -269,29 +271,9 @@ stepB := flow.Seq(initDB, queryOrders)
 
 ## 9. Dependency Graphs (`DAG`)
 
-The DAG engine executes complex dependency graphs with maximal branch parallelism and automatic cycle detection.
+The DAG engine executes complex dependency graphs with maximal branch parallelism, pre-compilation, zero runtime map lookups, and cycle detection.
 
-### Pure Function Edges (`From.To` / `Edge`)
-
-Wire functions directly into dependency graphs without string keys:
-
-```go
-// Using From(...).To(...) syntax
-pipeline := flow.DAGEdges(
- flow.From(fetchUser).To(processPayment),
- flow.From(fetchCart).To(processPayment),
- flow.From(processPayment).To(sendReceipt),
-)
-
-// Or using Edge(...)
-pipeline := flow.DAGEdges(
- flow.Edge(fetchUser, processPayment),
- flow.Edge(fetchCart, processPayment),
- flow.Edge(processPayment, sendReceipt),
-)
-```
-
-### Named Nodes (`Node` + `After`)
+### 1. Named Nodes (`Node` + `After`)
 
 Define explicit node identifiers for self-documenting workflows and debugging:
 
@@ -300,41 +282,56 @@ userNode := flow.Node("fetch-user", fetchUser)
 cartNode := flow.Node("fetch-cart", fetchCart)
 
 paymentNode := flow.Node("process-payment", processPayment).
- After("fetch-user", "fetch-cart")
+    After("fetch-user", "fetch-cart")
 
 receiptNode := flow.Node("send-receipt", sendReceipt).
- After("process-payment")
+    After("process-payment")
 
 // "fetch-user" and "fetch-cart" run concurrently.
 // "process-payment" runs once both complete.
 pipeline := flow.DAG(userNode, cartNode, paymentNode, receiptNode)
 ```
 
-### Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN`)
+### 2. Pure Function Edges (`From.To`)
 
-Cap the maximum number of concurrent in-flight nodes across the graph:
+Wire functions directly into dependency graphs without string keys:
 
 ```go
-// Throttle DAG execution to at most 2 concurrent node workers
-boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
+pipeline := flow.DAGEdges(
+    flow.From(fetchUser).To(processPayment),
+    flow.From(fetchCart).To(processPayment),
+    flow.From(processPayment).To(sendReceipt),
+)
 ```
 
-### Pre-Execution Validation & Cycle Path Tracing
+### 3. Pairwise Edge Helper (`Edge`)
+
+Concise shorthand for direct edge connections:
+
+```go
+pipeline := flow.DAGEdges(
+    flow.Edge(fetchUser, processPayment),
+    flow.Edge(fetchCart, processPayment),
+    flow.Edge(processPayment, sendReceipt),
+)
+```
+
+### 4. Pre-Execution Validation & Cycle Path Tracing
 
 Validate dependency graphs ahead of time with `plan.Validate()`. `go-flow` detects graph anomalies before any goroutines spawn, producing human-readable cycle path traces:
 
 ```go
 plan := flow.NewDAG(
- flow.Node("A", stepA).After("C"),
- flow.Node("B", stepB).After("A"),
- flow.Node("C", stepC).After("B"),
+    flow.Node("A", stepA).After("C"),
+    flow.Node("B", stepB).After("A"),
+    flow.Node("C", stepC).After("B"),
 )
 
 if err := plan.Validate(); err != nil {
- if errors.Is(err, flow.ErrDAGCycle) {
-  // Output: "cycle detected in DAG: A -> B -> C -> A"
-  log.Printf("Cycle detected: %v", err)
- }
+    if errors.Is(err, flow.ErrDAGCycle) {
+        // Output: "cycle detected in DAG: A -> B -> C -> A"
+        log.Printf("Cycle detected: %v", err)
+    }
 }
 ```
 
@@ -348,7 +345,51 @@ if err := plan.Validate(); err != nil {
 | `flow.ErrDAGNilNode` | A `nil` pointer was provided as a `*DAGNode[T]`. |
 | `flow.ErrDAGEmptyNodeName` | A node was created with an empty string name. |
 
-### Visual Graph Export (Mermaid & Graphviz DOT)
+### 5. Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN` / `StepN`)
+
+Cap the maximum number of concurrent in-flight nodes across the graph:
+
+```go
+// Throttle named DAG execution to at most 2 concurrent node workers
+boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
+
+// Or for edge-based DAGs:
+boundedEdges := flow.DAGEdgesN(2,
+    flow.From(fetchUser).To(processPayment),
+    flow.From(fetchCart).To(processPayment),
+)
+
+// Or via plan:
+workflow := plan.StepN(2)
+```
+
+### 6. Composite & Resilient DAG Nodes
+
+Embed retries, timeouts, fallbacks, conditional guards, and sub-pipelines directly into individual graph nodes:
+
+```go
+// Node with retry and timeout policies
+userNode := flow.Node("fetch-user",
+    flow.Step[*Context](fetchUser).Retry(3, 10*time.Millisecond).Timeout(500*time.Millisecond),
+)
+
+// Conditional node: runs only when condition is true
+vipNode := flow.Node("vip-discount",
+    flow.Step[*Context](applyVIPDiscount).When(func(c *Context) bool { return c.IsVIP }),
+).After("fetch-user")
+
+// Embedded sequential pipeline as a single node
+enrichNode := flow.Node("enrich-profile",
+    flow.Seq(fetchLoyalty, fetchGeoLocation),
+).After("fetch-user")
+
+// Protected payment node with secondary fallback gateway
+paymentNode := flow.Node("process-payment",
+    flow.Step[*Context](primaryGateway).Fallback(secondaryGateway),
+).After("vip-discount", "enrich-profile")
+```
+
+### 7. Visual Graph Export (Mermaid & Graphviz DOT)
 
 Generate diagrams directly from Go code:
 
@@ -360,6 +401,12 @@ mermaid, err := plan.ToMermaid()
 
 // Export to Graphviz DOT syntax
 dot, err := plan.ToDOT()
+
+// Export from pure function edges
+edgeMermaid, err := flow.DAGEdgesToMermaid(
+    flow.From(fetchUser).To(processPayment),
+    flow.From(fetchCart).To(processPayment),
+)
 ```
 
 <!-- AUTO-GENERATED-DAG:START -->
