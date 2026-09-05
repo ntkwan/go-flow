@@ -622,6 +622,18 @@ func TestDAGToMermaid(t *testing.T) {
 	if escapeMermaidID("") != "node" {
 		t.Fatalf("expected 'node' for empty string, got %q", escapeMermaidID(""))
 	}
+	if escapeMermaidID("a_z_A_Z_0_9") != "a_z_A_Z_0_9" {
+		t.Fatalf("expected 'a_z_A_Z_0_9', got %q", escapeMermaidID("a_z_A_Z_0_9"))
+	}
+	if escapeMermaidID("0a") != "n_0a" {
+		t.Fatalf("expected 'n_0a', got %q", escapeMermaidID("0a"))
+	}
+	if escapeMermaidID("9z") != "n_9z" {
+		t.Fatalf("expected 'n_9z', got %q", escapeMermaidID("9z"))
+	}
+	if escapeMermaidID("@#$") != "___" {
+		t.Fatalf("expected '___', got %q", escapeMermaidID("@#$"))
+	}
 }
 
 func TestDAGToMermaidEmptyAndErrors(t *testing.T) {

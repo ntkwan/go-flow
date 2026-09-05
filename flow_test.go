@@ -218,9 +218,23 @@ func TestStepMethodThen(t *testing.T) {
 		calls = append(calls, "s2")
 		return nil
 	})
+	s3 := Step[context.Context](func(ctx context.Context) error {
+		calls = append(calls, "s3")
+		return nil
+	})
 
-	chained := s1.Then(s2)
+	chained := s1.Then(s2, s3)
 	if err := chained(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(calls) != 3 || calls[0] != "s1" || calls[1] != "s2" || calls[2] != "s3" {
+		t.Fatalf("expected [s1 s2 s3], got %v", calls)
+	}
+
+	calls = nil
+	var nilStep Step[context.Context]
+	chainedNil := nilStep.Then(s1, s2)
+	if err := chainedNil(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if len(calls) != 2 || calls[0] != "s1" || calls[1] != "s2" {
@@ -238,9 +252,23 @@ func TestStepMethodGo(t *testing.T) {
 		count.Add(1)
 		return nil
 	})
+	s3 := Step[context.Context](func(ctx context.Context) error {
+		count.Add(1)
+		return nil
+	})
 
-	concurrent := s1.Go(s2)
+	concurrent := s1.Go(s2, s3)
 	if err := concurrent(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if count.Load() != 3 {
+		t.Fatalf("expected 3 executions, got %d", count.Load())
+	}
+
+	count.Store(0)
+	var nilStep Step[context.Context]
+	concurrentNil := nilStep.Go(s1, s2)
+	if err := concurrentNil(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if count.Load() != 2 {
@@ -258,9 +286,23 @@ func TestStepMethodGoN(t *testing.T) {
 		count.Add(1)
 		return nil
 	})
+	s3 := Step[context.Context](func(ctx context.Context) error {
+		count.Add(1)
+		return nil
+	})
 
-	concurrent := s1.GoN(1, s2)
+	concurrent := s1.GoN(2, s2, s3)
 	if err := concurrent(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if count.Load() != 3 {
+		t.Fatalf("expected 3 executions, got %d", count.Load())
+	}
+
+	count.Store(0)
+	var nilStep Step[context.Context]
+	concurrentNil := nilStep.GoN(1, s1, s2)
+	if err := concurrentNil(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if count.Load() != 2 {
@@ -277,9 +319,19 @@ func TestStepMethodRace(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 		return nil
 	})
+	s3 := Step[context.Context](func(ctx context.Context) error {
+		time.Sleep(200 * time.Millisecond)
+		return nil
+	})
 
-	racing := s1.Race(s2)
+	racing := s1.Race(s2, s3)
 	if err := racing(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	var nilStep Step[context.Context]
+	racingNil := nilStep.Race(s1, s2)
+	if err := racingNil(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 }
@@ -334,11 +386,29 @@ func TestStepMethodRetry(t *testing.T) {
 		t.Fatalf("expected nil error for nil step, got %v", err)
 	}
 
+	errTarget := errors.New("err target")
+	var zeroRuns atomic.Int32
 	zeroAttemptsStep := Step[context.Context](func(ctx context.Context) error {
-		return nil
+		zeroRuns.Add(1)
+		return errTarget
 	}).Retry(0, 0)
-	if err := zeroAttemptsStep(context.Background()); err != nil {
-		t.Fatalf("expected nil error for zero attempts, got %v", err)
+	if err := zeroAttemptsStep(context.Background()); !errors.Is(err, errTarget) {
+		t.Fatalf("expected errTarget for zero attempts, got %v", err)
+	}
+	if zeroRuns.Load() != 1 {
+		t.Fatalf("expected exactly 1 attempt for 0 attempts, got %d", zeroRuns.Load())
+	}
+
+	var negRuns atomic.Int32
+	negAttemptsStep := Step[context.Context](func(ctx context.Context) error {
+		negRuns.Add(1)
+		return errTarget
+	}).Retry(-5, 0)
+	if err := negAttemptsStep(context.Background()); !errors.Is(err, errTarget) {
+		t.Fatalf("expected errTarget for negative attempts, got %v", err)
+	}
+	if negRuns.Load() != 1 {
+		t.Fatalf("expected exactly 1 attempt for negative attempts, got %d", negRuns.Load())
 	}
 
 	var attempts atomic.Int32
@@ -364,6 +434,22 @@ func TestStepMethodRetry(t *testing.T) {
 
 	if err := alwaysFail(context.Background()); !errors.Is(err, errAlways) {
 		t.Fatalf("expected %v, got %v", errAlways, err)
+	}
+
+	start := time.Now()
+	var failAttempts atomic.Int32
+	delayMeasured := Step[context.Context](func(ctx context.Context) error {
+		failAttempts.Add(1)
+		return errors.New("fail")
+	}).Retry(3, 10*time.Millisecond)
+
+	_ = delayMeasured(context.Background())
+	elapsed := time.Since(start)
+	if failAttempts.Load() != 3 {
+		t.Fatalf("expected 3 attempts, got %d", failAttempts.Load())
+	}
+	if elapsed < 18*time.Millisecond {
+		t.Fatalf("expected at least 2 delay periods (~20ms), took %v", elapsed)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
