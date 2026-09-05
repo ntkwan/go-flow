@@ -1,8 +1,10 @@
 # go-flow
 
 [![CI](https://github.com/ntkwan/go-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/ntkwan/go-flow/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ntkwan/go-flow)](https://goreportcard.com/report/github.com/ntkwan/go-flow)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ntkwan/go-flow.svg)](https://pkg.go.dev/github.com/ntkwan/go-flow)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/ntkwan/go-flow)](https://go.dev)
+[![Release](https://img.shields.io/github/v/release/ntkwan/go-flow)](https://github.com/ntkwan/go-flow/releases)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/ntkwan/go-flow/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A high-performance, minimalist Go workflow and step execution engine designed for modern Go (1.27+). Built with generics, standard iterators, and zero external dependencies.
@@ -25,6 +27,44 @@ A high-performance, minimalist Go workflow and step execution engine designed fo
 ```bash
 go get github.com/ntkwan/go-flow
 ```
+
+## Mental Model
+
+```mermaid
+graph LR
+    subgraph Sequential [1. Linear Seq]
+        A1[Step 1] --> A2[Step 2] --> A3[Step 3]
+    end
+    subgraph Parallel [2. Concurrent Go / GoN]
+        B1[Worker 1]
+        B2[Worker 2]
+        B3[Worker 3]
+    end
+    subgraph Speculative [3. Speculative Race]
+        R1[Server 1]
+        R2[Server 2]
+        R3[Server 3]
+    end
+    subgraph DAG [4. Dependency DAG]
+        D1[Fetch User] --> D3[Process Payment]
+        D2[Fetch Cart] --> D3
+        D3 --> D4[Send Receipt]
+    end
+```
+
+## Combinator Reference Matrix
+
+| Combinator | Syntax | Concurrency | Error Behavior | Lifecycle / Cancellation |
+|---|---|---|---|---|
+| **Sequential** | `flow.Seq(...)` / `.Then(...)` | Sequential (1) | Short-circuits on first error | Halts remaining steps |
+| **Unbounded Parallel** | `flow.Go(...)` | Concurrent ($\infty$) | Joins all errors (`errors.Join`) | Waits for all steps to finish |
+| **Bounded Parallel** | `flow.GoN(limit, ...)` | Concurrent (`limit`) | Joins all errors (`errors.Join`) | Throttles active worker goroutines |
+| **Speculative Race** | `flow.Race(...)` | Concurrent ($\infty$) | Returns on first success | Cancels remaining losing branches |
+| **Pure Function DAG** | `flow.DAGEdges(...)` | Maximal parallel | Short-circuits dependent branches | Propagates branch failure |
+| **Bounded DAG** | `flow.DAGEdgesN(limit, ...)` | Maximal parallel (`limit`) | Short-circuits dependent branches | Throttles active node workers |
+| **Named Node DAG** | `flow.DAG(...)` / `flow.DAGN(...)` | Maximal parallel | Short-circuits dependent branches | Explicit string node identifiers |
+| **Iterator Stream** | `flow.Each(...)` / `flow.Each2(...)` | Sequential | Short-circuits on first error | Halts sequence consumption |
+| **Idempotent Step** | `flow.Once(...)` | Thread-safe single-run | Caches first result | Executes at most once |
 
 ## Quick Start
 
@@ -214,6 +254,49 @@ pipeline := flow.DAGEdgesN(2,
 
 // Or with named nodes
 boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
+```
+
+### 9. Custom Domain Contexts (`Step[T]`)
+
+`Step[T]` is generic over any type satisfying `context.Context`, providing compile-time type safety for domain workflows without type assertions:
+
+```go
+type OrderContext struct {
+	context.Context
+	OrderID string
+	UserID  string
+	Total   int64
+	Paid    bool
+}
+
+func validateOrder(ctx *OrderContext) error {
+	if ctx.Total <= 0 {
+		return errors.New("invalid order total")
+	}
+	return nil
+}
+
+func chargePayment(ctx *OrderContext) error {
+	ctx.Paid = true
+	return nil
+}
+
+// Entire pipeline is strongly typed to *OrderContext
+orderPipeline := flow.Seq(
+	flow.Step[*OrderContext](validateOrder),
+	flow.Step[*OrderContext](chargePayment),
+)
+
+orderCtx := &OrderContext{
+	Context: context.Background(),
+	OrderID: "ord-883",
+	UserID:  "usr-102",
+	Total:   15000,
+}
+
+if err := orderPipeline(orderCtx); err != nil {
+	log.Fatal(err)
+}
 ```
 
 ## License
