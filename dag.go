@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 )
 
@@ -13,10 +14,37 @@ type DAGNode[T context.Context] struct {
 	dependsOn []string
 }
 
+type DAGConnection[T context.Context] struct {
+	from Step[T]
+	to   []Step[T]
+}
+
+type DAGEdgeBuilder[T context.Context] struct {
+	from Step[T]
+}
+
 func Node[T context.Context](name string, step Step[T]) *DAGNode[T] {
 	return &DAGNode[T]{
 		name: name,
 		step: step,
+	}
+}
+
+func Edge[T context.Context](from Step[T], to ...Step[T]) DAGConnection[T] {
+	return DAGConnection[T]{
+		from: from,
+		to:   to,
+	}
+}
+
+func From[T context.Context](from Step[T]) DAGEdgeBuilder[T] {
+	return DAGEdgeBuilder[T]{from: from}
+}
+
+func (b DAGEdgeBuilder[T]) To(to ...Step[T]) DAGConnection[T] {
+	return DAGConnection[T]{
+		from: b.from,
+		to:   to,
 	}
 }
 
@@ -228,3 +256,69 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 		return errors.Join(errs...)
 	}
 }
+
+func buildNodesFromConnections[T context.Context](connections []DAGConnection[T]) ([]*DAGNode[T], error) {
+	nodeMap := make(map[uintptr]*DAGNode[T])
+	order := make([]uintptr, 0)
+
+	getNode := func(s Step[T]) (*DAGNode[T], error) {
+		if s == nil {
+			return nil, errors.New("nil step in DAG edge")
+		}
+		ptr := reflect.ValueOf(s).Pointer()
+		if node, exists := nodeMap[ptr]; exists {
+			return node, nil
+		}
+		name := fmt.Sprintf("fn_%x", ptr)
+		node := &DAGNode[T]{
+			name: name,
+			step: s,
+		}
+		nodeMap[ptr] = node
+		order = append(order, ptr)
+		return node, nil
+	}
+
+	for _, conn := range connections {
+		fromNode, err := getNode(conn.from)
+		if err != nil {
+			return nil, err
+		}
+		for _, toStep := range conn.to {
+			toNode, err := getNode(toStep)
+			if err != nil {
+				return nil, err
+			}
+			toNode.dependsOn = append(toNode.dependsOn, fromNode.name)
+		}
+	}
+
+	nodes := make([]*DAGNode[T], 0, len(order))
+	for _, ptr := range order {
+		nodes = append(nodes, nodeMap[ptr])
+	}
+	return nodes, nil
+}
+
+func DAGEdges[T context.Context](connections ...DAGConnection[T]) Step[T] {
+	if len(connections) == 0 {
+		return func(ctx T) error { return nil }
+	}
+	nodes, err := buildNodesFromConnections(connections)
+	if err != nil {
+		return func(ctx T) error { return err }
+	}
+	return DAG(nodes...)
+}
+
+func DAGEdgesN[T context.Context](limit int, connections ...DAGConnection[T]) Step[T] {
+	if len(connections) == 0 {
+		return func(ctx T) error { return nil }
+	}
+	nodes, err := buildNodesFromConnections(connections)
+	if err != nil {
+		return func(ctx T) error { return err }
+	}
+	return DAGN(limit, nodes...)
+}
+

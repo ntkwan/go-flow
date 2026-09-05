@@ -433,3 +433,143 @@ func BenchmarkDAGN(b *testing.B) {
 		_ = step(ctx)
 	}
 }
+
+func TestDAGEdgesBasic(t *testing.T) {
+	var step1Done, step2Done, step3Done atomic.Bool
+
+	step1 := func(ctx context.Context) error {
+		time.Sleep(10 * time.Millisecond)
+		step1Done.Store(true)
+		return nil
+	}
+	step2 := func(ctx context.Context) error {
+		if !step1Done.Load() {
+			t.Error("step1 must be done before step2")
+		}
+		step2Done.Store(true)
+		return nil
+	}
+	step3 := func(ctx context.Context) error {
+		if !step2Done.Load() {
+			t.Error("step2 must be done before step3")
+		}
+		step3Done.Store(true)
+		return nil
+	}
+
+	graph := DAGEdges(
+		Edge(step1, step2),
+		From(step2).To(step3),
+	)
+
+	if err := graph(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if !step1Done.Load() || !step2Done.Load() || !step3Done.Load() {
+		t.Fatal("expected all steps to complete")
+	}
+}
+
+func TestDAGEdgesEmpty(t *testing.T) {
+	step := DAGEdges[context.Context]()
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	stepN := DAGEdgesN[context.Context](2)
+	if err := stepN(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestDAGEdgesNilStep(t *testing.T) {
+	fn := func(ctx context.Context) error { return nil }
+
+	graph1 := DAGEdges(Edge(nil, fn))
+	if err := graph1(context.Background()); err == nil {
+		t.Fatal("expected error for nil step, got nil")
+	}
+
+	graph2 := DAGEdges(Edge(fn, nil))
+	if err := graph2(context.Background()); err == nil {
+		t.Fatal("expected error for nil step, got nil")
+	}
+
+	graph3 := DAGEdgesN(2, Edge(nil, fn))
+	if err := graph3(context.Background()); err == nil {
+		t.Fatal("expected error for nil step, got nil")
+	}
+}
+
+func TestDAGEdgesCycle(t *testing.T) {
+	fn1 := func(ctx context.Context) error { return nil }
+	fn2 := func(ctx context.Context) error { return nil }
+
+	graph := DAGEdges(
+		Edge(fn1, fn2),
+		Edge(fn2, fn1),
+	)
+
+	if err := graph(context.Background()); err == nil {
+		t.Fatal("expected cycle error, got nil")
+	}
+}
+
+func TestDAGEdgesNBounded(t *testing.T) {
+	var active atomic.Int64
+	var maxActive atomic.Int64
+
+	work := func(ctx context.Context) error {
+		cur := active.Add(1)
+		for {
+			old := maxActive.Load()
+			if cur <= old || maxActive.CompareAndSwap(old, cur) {
+				break
+			}
+		}
+		time.Sleep(30 * time.Millisecond)
+		active.Add(-1)
+		return nil
+	}
+
+	root := func(ctx context.Context) error { return nil }
+	f1 := func(ctx context.Context) error { return work(ctx) }
+	f2 := func(ctx context.Context) error { return work(ctx) }
+	f3 := func(ctx context.Context) error { return work(ctx) }
+	f4 := func(ctx context.Context) error { return work(ctx) }
+
+	graph := DAGEdgesN(
+		2,
+		From(root).To(f1, f2, f3, f4),
+	)
+
+	if err := graph(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if peak := maxActive.Load(); peak > 2 {
+		t.Fatalf("expected max active <= 2, got %d", peak)
+	}
+}
+
+func BenchmarkDAGEdges(b *testing.B) {
+	f1 := func(ctx context.Context) error { return nil }
+	f2 := func(ctx context.Context) error { return nil }
+	f3 := func(ctx context.Context) error { return nil }
+	f4 := func(ctx context.Context) error { return nil }
+
+	graph := DAGEdges(
+		Edge(f1, f2, f3),
+		Edge(f2, f4),
+		Edge(f3, f4),
+	)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = graph(ctx)
+	}
+}
+

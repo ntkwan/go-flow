@@ -32,12 +32,11 @@ func sendReceipt(ctx context.Context) error {
 }
 
 func main() {
-	userNode := flow.Node("fetch_user", fetchUser)
-	cartNode := flow.Node("fetch_cart", fetchCart)
-	paymentNode := flow.Node("payment", processPayment).After("fetch_user", "fetch_cart")
-	receiptNode := flow.Node("receipt", sendReceipt).After("payment")
-
-	graph := flow.DAG(userNode, cartNode, paymentNode, receiptNode)
+	graph := flow.DAGEdges(
+		flow.Edge(fetchUser, processPayment),
+		flow.Edge(fetchCart, processPayment),
+		flow.Edge(processPayment, sendReceipt),
+	)
 	if err := graph(context.Background()); err != nil {
 		panic(err)
 	}
