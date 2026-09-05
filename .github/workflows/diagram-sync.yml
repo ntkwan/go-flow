@@ -21,7 +21,10 @@ jobs:
           check-latest: true
 
       - name: Generate Documentation Diagrams
-        run: go run ./cmd/gen-diagrams
+        shell: bash
+        run: |
+          cd cmd/gen-diagrams
+          go run .
 
       - name: Commit & Push Diagram Updates
         uses: stefanzweifel/git-auto-commit-action@v5

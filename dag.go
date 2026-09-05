@@ -62,12 +62,6 @@ func (n *DAGNode[T]) After(deps ...string) *DAGNode[T] {
 	return n
 }
 
-type dagRuntimeNode[T context.Context] struct {
-	node *DAGNode[T]
-	done chan struct{}
-	err  error
-}
-
 func findCyclePath[T context.Context](nodes []*DAGNode[T], nodeMap map[string]*DAGNode[T], inDegree map[string]int) []string {
 	var start string
 	for _, n := range nodes {
@@ -164,66 +158,83 @@ func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 	return nil
 }
 
-func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
-	return func(ctx T) error {
-		if len(nodes) == 0 {
-			return nil
-		}
+type compiledDAGNode[T context.Context] struct {
+	step    Step[T]
+	depIdxs []int
+}
 
-		if err := validateDAG(nodes); err != nil {
-			return err
-		}
-
-		runtimeMap := make(map[string]*dagRuntimeNode[T], len(nodes))
-		for _, n := range nodes {
-			runtimeMap[n.name] = &dagRuntimeNode[T]{
-				node: n,
-				done: make(chan struct{}),
+func compileDAG[T context.Context](nodes []*DAGNode[T]) ([]compiledDAGNode[T], error) {
+	if err := validateDAG(nodes); err != nil {
+		return nil, err
+	}
+	nodeIndices := make(map[string]int, len(nodes))
+	for i, n := range nodes {
+		nodeIndices[n.name] = i
+	}
+	compiled := make([]compiledDAGNode[T], len(nodes))
+	for i, n := range nodes {
+		compiled[i].step = n.step
+		if len(n.dependsOn) > 0 {
+			compiled[i].depIdxs = make([]int, len(n.dependsOn))
+			for j, dep := range n.dependsOn {
+				compiled[i].depIdxs[j] = nodeIndices[dep]
 			}
 		}
+	}
+	return compiled, nil
+}
+
+func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
+	if len(nodes) == 0 {
+		return func(ctx T) error { return nil }
+	}
+
+	compiled, compileErr := compileDAG(nodes)
+	if compileErr != nil {
+		return func(ctx T) error { return compileErr }
+	}
+
+	n := len(compiled)
+	return func(ctx T) error {
+		done := make([]chan struct{}, n)
+		for i := range done {
+			done[i] = make(chan struct{})
+		}
+		errs := make([]error, n)
 
 		var wg sync.WaitGroup
-		wg.Add(len(nodes))
-		for _, rn := range runtimeMap {
-			go func(r *dagRuntimeNode[T]) {
+		wg.Add(n)
+		for i := range compiled {
+			go func(idx int) {
 				defer func() {
-					close(r.done)
+					close(done[idx])
 					wg.Done()
 				}()
 
-				for _, depName := range r.node.dependsOn {
-					dep := runtimeMap[depName]
+				for _, depIdx := range compiled[idx].depIdxs {
 					select {
 					case <-ctx.Done():
-						r.err = ctx.Err()
+						errs[idx] = ctx.Err()
 						return
-					case <-dep.done:
-						if dep.err != nil {
+					case <-done[depIdx]:
+						if errs[depIdx] != nil {
 							return
 						}
 					}
 				}
 
 				if ctx.Err() != nil {
-					r.err = ctx.Err()
+					errs[idx] = ctx.Err()
 					return
 				}
 
-				if r.node.step != nil {
-					r.err = r.node.step(ctx)
+				if compiled[idx].step != nil {
+					errs[idx] = compiled[idx].step(ctx)
 				}
-			}(rn)
+			}(i)
 		}
 
 		wg.Wait()
-
-		var errs []error
-		for _, n := range nodes {
-			if rn := runtimeMap[n.name]; rn.err != nil {
-				errs = append(errs, rn.err)
-			}
-		}
-
 		return errors.Join(errs...)
 	}
 }
@@ -232,69 +243,61 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 	if limit <= 0 || limit >= len(nodes) {
 		return DAG(nodes...)
 	}
-	return func(ctx T) error {
-		if err := validateDAG(nodes); err != nil {
-			return err
-		}
 
-		runtimeMap := make(map[string]*dagRuntimeNode[T], len(nodes))
-		for _, n := range nodes {
-			runtimeMap[n.name] = &dagRuntimeNode[T]{
-				node: n,
-				done: make(chan struct{}),
-			}
+	compiled, compileErr := compileDAG(nodes)
+	if compileErr != nil {
+		return func(ctx T) error { return compileErr }
+	}
+
+	n := len(compiled)
+	return func(ctx T) error {
+		done := make([]chan struct{}, n)
+		for i := range done {
+			done[i] = make(chan struct{})
 		}
+		errs := make([]error, n)
 
 		sem := make(chan struct{}, limit)
 		var wg sync.WaitGroup
-		wg.Add(len(nodes))
-		for _, rn := range runtimeMap {
-			go func(r *dagRuntimeNode[T]) {
+		wg.Add(n)
+		for i := range compiled {
+			go func(idx int) {
 				defer func() {
-					close(r.done)
+					close(done[idx])
 					wg.Done()
 				}()
 
-				for _, depName := range r.node.dependsOn {
-					dep := runtimeMap[depName]
+				for _, depIdx := range compiled[idx].depIdxs {
 					select {
 					case <-ctx.Done():
-						r.err = ctx.Err()
+						errs[idx] = ctx.Err()
 						return
-					case <-dep.done:
-						if dep.err != nil {
+					case <-done[depIdx]:
+						if errs[depIdx] != nil {
 							return
 						}
 					}
 				}
 
 				if ctx.Err() != nil {
-					r.err = ctx.Err()
+					errs[idx] = ctx.Err()
 					return
 				}
 
-				if r.node.step != nil {
+				if compiled[idx].step != nil {
 					select {
 					case <-ctx.Done():
-						r.err = ctx.Err()
+						errs[idx] = ctx.Err()
 						return
 					case sem <- struct{}{}:
 						defer func() { <-sem }()
-						r.err = r.node.step(ctx)
+						errs[idx] = compiled[idx].step(ctx)
 					}
 				}
-			}(rn)
+			}(i)
 		}
 
 		wg.Wait()
-
-		var errs []error
-		for _, n := range nodes {
-			if rn := runtimeMap[n.name]; rn.err != nil {
-				errs = append(errs, rn.err)
-			}
-		}
-
 		return errors.Join(errs...)
 	}
 }

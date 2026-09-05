@@ -71,12 +71,21 @@ jobs:
           go-version: '1.27'
           check-latest: true
       - name: Run Static Analysis
-        run: go vet ./...
+        shell: bash
+        run: |
+          go vet ./...
+          (cd examples && go vet ./...)
+          (cd cmd/gen-diagrams && go vet .)
+          (cd test && go vet ./...)
       - name: Run GolangCI-Lint
+        shell: bash
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
           GOPATH=$(go env GOPATH)
           "$GOPATH/bin/golangci-lint" run ./...
+          (cd examples && "$GOPATH/bin/golangci-lint" run ./...)
+          (cd cmd/gen-diagrams && "$GOPATH/bin/golangci-lint" run ./...)
+          (cd test && "$GOPATH/bin/golangci-lint" run ./...)
 
   test:
     runs-on: ${{ matrix.os }}
@@ -93,10 +102,23 @@ jobs:
           check-latest: true
 
       - name: Build All Packages
-        run: go build ./...
+        shell: bash
+        run: |
+          go build ./...
+          (cd examples && go build ./...)
+          (cd cmd/gen-diagrams && go build .)
 
       - name: Run Tests with Race Detector
-        run: go test -v -race ./...
+        shell: bash
+        run: |
+          go test -v -race ./...
+          (cd test && go test -v -race ./...)
+
+      - name: Run Allocation Invariant Tests
+        shell: bash
+        run: |
+          cd test
+          go test -v ./alloc/...
 
       - name: Run Goroutine Leak Detection
         shell: bash
@@ -113,9 +135,10 @@ jobs:
       - name: Run Fuzz Smoke Tests
         shell: bash
         run: |
-          go test -fuzz=FuzzDAG -fuzztime=3s ./test/fuzz
-          go test -fuzz=FuzzChunk -fuzztime=3s ./test/fuzz
-          go test -fuzz=FuzzPipeSeq -fuzztime=3s ./test/fuzz
+          cd test
+          go test -fuzz=FuzzDAG -fuzztime=3s ./fuzz
+          go test -fuzz=FuzzChunk -fuzztime=3s ./fuzz
+          go test -fuzz=FuzzPipeSeq -fuzztime=3s ./fuzz
 
       - name: Enforce 100% Coverage Threshold
         shell: bash

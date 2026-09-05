@@ -1,0 +1,65 @@
+name: Benchmark Regression
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '.github/dependabot.yml'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '.github/dependabot.yml'
+
+jobs:
+  benchstat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          check-latest: true
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run Benchmarks (PR Baseline vs Head)
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git checkout "origin/$GITHUB_BASE_REF"
+          (cd test && go test -run=^$ -bench=. -benchmem -count=6 ./bench/...) > baseline.txt
+          git checkout -
+          (cd test && go test -run=^$ -bench=. -benchmem -count=6 ./bench/...) > current.txt
+          GOPATH=$(go env GOPATH)
+          REPORT=$("$GOPATH/bin/benchstat" baseline.txt current.txt)
+          echo "$REPORT"
+          {
+            echo "### Benchmark Regression Report (benchstat)"
+            echo '```text'
+            echo "$REPORT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Benchmarks (Main Push Baseline)
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          (cd test && go test -run=^$ -bench=. -benchmem -count=6 ./bench/...) > current.txt
+          {
+            echo "### Benchmark Report (Main Branch)"
+            echo '```text'
+            cat current.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

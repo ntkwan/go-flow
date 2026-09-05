@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+cmd/gen-diagrams/gen-diagrams
 
 # Test binary, built with `go test -c`
 *.test
@@ -31,3 +32,11 @@ go.work.sum
 .agents/
 .claude/
 openspec/
+.tempmediaStorage/
+scratch/
+
+# Benchmark output files
+bench_*.txt
+baseline.txt
+current.txt
+*.bench

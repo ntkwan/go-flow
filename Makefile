@@ -3,24 +3,26 @@
 all: check lint lint-actions test-race leak bdd
 
 gen:
-	go run ./cmd/gen-diagrams
+	cd cmd/gen-diagrams && go run .
 
 test:
 	go test -v ./...
+	cd test && go test -v ./...
 
 test-race:
 	go test -v -race ./...
+	cd test && go test -v -race ./...
 
 stress:
-	go test -v -race -count=100 -run '^TestStress' ./...
+	cd test && go test -v -race -count=100 -run '^TestStress' ./...
 
 leak:
 	cd test/leak && go test -v ./...
 
 fuzz:
-	go test -fuzz=FuzzDAG -fuzztime=5s ./test/fuzz
-	go test -fuzz=FuzzChunk -fuzztime=5s ./test/fuzz
-	go test -fuzz=FuzzPipeSeq -fuzztime=5s ./test/fuzz
+	cd test && go test -fuzz=FuzzDAG -fuzztime=5s ./fuzz
+	cd test && go test -fuzz=FuzzChunk -fuzztime=5s ./fuzz
+	cd test && go test -fuzz=FuzzPipeSeq -fuzztime=5s ./fuzz
 
 cover:
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
@@ -36,6 +38,9 @@ fmt:
 
 lint:
 	golangci-lint run ./...
+	cd examples && golangci-lint run ./...
+	cd cmd/gen-diagrams && golangci-lint run ./...
+	cd test && golangci-lint run ./...
 
 lint-actions:
 	@if command -v actionlint >/dev/null 2>&1; then \
@@ -54,10 +59,10 @@ check:
 	go vet ./...
 
 bench:
-	go test -v -bench=. -benchmem -run=^$$ ./...
+	cd test && go test -v -bench=. -benchmem -run=^$$ ./bench/...
 
 bench-compare:
-	@go test -bench=. -benchmem -count=5 -run=^$$ ./... > new.bench
+	@cd test && go test -bench=. -benchmem -count=5 -run=^$$ ./bench/... > ../new.bench
 	@if [ -f old.bench ]; then \
 		if command -v benchstat >/dev/null 2>&1; then \
 			benchstat old.bench new.bench; \
