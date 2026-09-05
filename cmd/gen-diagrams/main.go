@@ -17,6 +17,7 @@ func buildShowcasePlan() (*flow.DAGPlan[context.Context], error) {
 	paymentNode := flow.Node("process-payment", func(ctx context.Context) error { return nil }).After("calculate-discounts", "fetch-inventory")
 	updateInvNode := flow.Node("update-inventory", func(ctx context.Context) error { return nil }).After("process-payment")
 	invoiceNode := flow.Node("generate-invoice", func(ctx context.Context) error { return nil }).After("process-payment")
+	auditNode := flow.Node("audit-log", func(ctx context.Context) error { return nil }).After("process-payment")
 	notifyNode := flow.Node("notify-customer", func(ctx context.Context) error { return nil }).After("generate-invoice")
 	dispatchNode := flow.Node("dispatch-warehouse", func(ctx context.Context) error { return nil }).After("update-inventory")
 
@@ -28,6 +29,7 @@ func buildShowcasePlan() (*flow.DAGPlan[context.Context], error) {
 		paymentNode,
 		updateInvNode,
 		invoiceNode,
+		auditNode,
 		notifyNode,
 		dispatchNode,
 	), nil

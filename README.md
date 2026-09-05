@@ -272,16 +272,28 @@ boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
 Generate Mermaid markdown diagrams or Graphviz DOT graphs directly from Go code for documentation, live telemetry, and debugging:
 
 ```go
+validateNode := flow.Node("validate-order", validateOrder)
+userNode := flow.Node("fetch-user", fetchUser).After("validate-order")
+inventoryNode := flow.Node("fetch-inventory", fetchInventory).After("validate-order")
+discountNode := flow.Node("calculate-discounts", calculateDiscounts).After("fetch-user")
+paymentNode := flow.Node("process-payment", processPayment).After("calculate-discounts", "fetch-inventory")
+updateInvNode := flow.Node("update-inventory", updateInventory).After("process-payment")
+invoiceNode := flow.Node("generate-invoice", generateInvoice).After("process-payment")
+auditNode := flow.Node("audit-log", auditLog).After("process-payment")
+notifyNode := flow.Node("notify-customer", notifyCustomer).After("generate-invoice")
+dispatchNode := flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory")
+
 plan := flow.NewDAG(
-	flow.Node("validate-order", validateOrder),
-	flow.Node("fetch-user", fetchUser).After("validate-order"),
-	flow.Node("fetch-inventory", fetchInventory).After("validate-order"),
-	flow.Node("calculate-discounts", calculateDiscounts).After("fetch-user"),
-	flow.Node("process-payment", processPayment).After("calculate-discounts", "fetch-inventory"),
-	flow.Node("update-inventory", updateInventory).After("process-payment"),
-	flow.Node("generate-invoice", generateInvoice).After("process-payment"),
-	flow.Node("notify-customer", notifyCustomer).After("generate-invoice"),
-	flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory"),
+    validateNode,
+    userNode,
+    inventoryNode,
+    discountNode,
+    paymentNode,
+    updateInvNode,
+    invoiceNode,
+    auditNode,
+    notifyNode,
+    dispatchNode,
 )
 
 // Export to Mermaid markdown syntax
@@ -307,6 +319,7 @@ graph TD
     fetch_inventory["fetch-inventory"] --> process_payment["process-payment"]
     process_payment["process-payment"] --> update_inventory["update-inventory"]
     process_payment["process-payment"] --> generate_invoice["generate-invoice"]
+    process_payment["process-payment"] --> audit_log["audit-log"]
     generate_invoice["generate-invoice"] --> notify_customer["notify-customer"]
     update_inventory["update-inventory"] --> dispatch_warehouse["dispatch-warehouse"]
 ```

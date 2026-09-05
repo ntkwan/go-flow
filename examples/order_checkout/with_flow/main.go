@@ -75,6 +75,11 @@ func dispatchWarehouse(ctx *OrderContext) error {
 	return nil
 }
 
+func auditLog(ctx *OrderContext) error {
+	fmt.Println("[9/9] Audit event recorded to compliance log")
+	return nil
+}
+
 func main() {
 	orderCtx := &OrderContext{
 		Context:     context.Background(),
@@ -90,6 +95,7 @@ func main() {
 	paymentNode := flow.Node("process-payment", processPayment).After("calculate-discounts", "fetch-inventory")
 	updateInvNode := flow.Node("update-inventory", updateInventory).After("process-payment")
 	invoiceNode := flow.Node("generate-invoice", generateInvoice).After("process-payment")
+	auditNode := flow.Node("audit-log", auditLog).After("process-payment")
 	notifyNode := flow.Node("notify-customer", notifyCustomer).After("generate-invoice")
 	dispatchNode := flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory")
 
@@ -101,6 +107,7 @@ func main() {
 		paymentNode,
 		updateInvNode,
 		invoiceNode,
+		auditNode,
 		notifyNode,
 		dispatchNode,
 	)
