@@ -947,16 +947,24 @@ func TestDAGConcurrentFailureStart(t *testing.T) {
 
 func TestDAGNContentionFailure(t *testing.T) {
 	errFail := errors.New("contended failure")
+	var n1Entered atomic.Bool
 	n1 := Node("n1", func(ctx context.Context) error {
-		time.Sleep(50 * time.Millisecond)
+		n1Entered.Store(true)
+		time.Sleep(30 * time.Millisecond)
 		return errFail
 	})
+	waitForN1 := func(ctx context.Context) bool {
+		for !n1Entered.Load() {
+			time.Sleep(1 * time.Millisecond)
+		}
+		return true
+	}
 	n2 := Node("n2", func(ctx context.Context) error {
 		return nil
-	})
+	}).When(waitForN1)
 	n3 := Node("n3", func(ctx context.Context) error {
 		return nil
-	})
+	}).When(waitForN1)
 
 	dagn := DAGN(1, n1, n2, n3)
 	err := dagn(context.Background())
