@@ -137,4 +137,18 @@ func TestLeakWorkflows(t *testing.T) {
 		})
 		_ = s(ctx)
 	})
+
+	t.Run("Retry cancellation timer cleanup", func(t *testing.T) {
+		ctxCancel, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(5 * time.Millisecond)
+			cancel()
+		}()
+
+		step := flow.Step[context.Context](func(ctx context.Context) error {
+			return errors.New("fail")
+		}).Retry(5, 500*time.Millisecond)
+
+		_ = step(ctxCancel)
+	})
 }

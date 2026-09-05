@@ -602,4 +602,84 @@ func TestDAGReport(t *testing.T) {
 			t.Error("expected nil skipped on nil report")
 		}
 	})
+
+	t.Run("DAGWithReport and DAGNWithReport skipped dependents", func(t *testing.T) {
+		nA := flow.Node("a", func(ctx context.Context) error { return nil }).When(func(ctx context.Context) bool { return false })
+		nB := flow.Node("b", func(ctx context.Context) error { return nil }).After("a")
+		rep, err := flow.DAGWithReport(nA, nB)(context.Background())
+		if err != nil || rep == nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(rep.Skipped()) != 1 || rep.Skipped()[0].Name != "a" {
+			t.Fatalf("expected node a skipped, got %v", rep.Skipped())
+		}
+		if len(rep.Successful()) != 1 || rep.Successful()[0].Name != "b" {
+			t.Fatalf("expected node b success, got %v", rep.Successful())
+		}
+
+		repN, errN := flow.DAGNWithReport(1, nA, nB)(context.Background())
+		if errN != nil || repN == nil {
+			t.Fatalf("unexpected error: %v", errN)
+		}
+		if len(repN.Skipped()) != 1 || repN.Skipped()[0].Name != "a" {
+			t.Fatalf("expected node a skipped in DAGN, got %v", repN.Skipped())
+		}
+	})
+
+	t.Run("DAGWithReport and DAGNWithReport concurrent failures and contention", func(t *testing.T) {
+		errFast := errors.New("fast error")
+		nodes := make([]*flow.DAGNode[context.Context], 25)
+		nodes[0] = flow.Node("fail", func(ctx context.Context) error {
+			return errFast
+		})
+		for i := 1; i < 25; i++ {
+			nodes[i] = flow.Node(strings.Repeat("n", i), func(ctx context.Context) error {
+				time.Sleep(5 * time.Millisecond)
+				return nil
+			})
+		}
+		rep, err := flow.DAGWithReport(nodes...)(context.Background())
+		if !errors.Is(err, errFast) || rep == nil {
+			t.Fatalf("expected fast error, got %v", err)
+		}
+
+		repN, errN := flow.DAGNWithReport(2, nodes...)(context.Background())
+		if !errors.Is(errN, errFast) || repN == nil {
+			t.Fatalf("expected fast error in DAGN, got %v", errN)
+		}
+
+		nContend1 := flow.Node("c1", func(ctx context.Context) error {
+			time.Sleep(5 * time.Millisecond)
+			return errFast
+		})
+		nContend2 := flow.Node("c2", func(ctx context.Context) error { return nil })
+		nContend3 := flow.Node("c3", func(ctx context.Context) error { return nil })
+		repContend, errContend := flow.DAGNWithReport(1, nContend1, nContend2, nContend3)(context.Background())
+		if !errors.Is(errContend, errFast) || repContend == nil {
+			t.Fatalf("expected error on contention, got %v", errContend)
+		}
+	})
+
+	t.Run("DAGWithReport and DAGNWithReport late cancel after successful steps", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		n1 := flow.Node("n1", func(c context.Context) error {
+			cancel()
+			return nil
+		})
+		rep, err := flow.DAGWithReport(n1)(ctx)
+		if !errors.Is(err, context.Canceled) || rep == nil {
+			t.Fatalf("expected context.Canceled, got err=%v, rep=%v", err, rep)
+		}
+
+		ctxN, cancelN := context.WithCancel(context.Background())
+		nN1 := flow.Node("n1", func(c context.Context) error { return nil })
+		nN2 := flow.Node("n2", func(c context.Context) error {
+			cancelN()
+			return nil
+		}).After("n1")
+		repN, errN := flow.DAGNWithReport(1, nN1, nN2)(ctxN)
+		if !errors.Is(errN, context.Canceled) || repN == nil {
+			t.Fatalf("expected context.Canceled, got err=%v, rep=%v", errN, repN)
+		}
+	})
 }

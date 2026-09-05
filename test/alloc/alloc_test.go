@@ -160,3 +160,71 @@ func TestAllocDynamicZeroAlloc(t *testing.T) {
 		t.Fatalf("expected 0 allocs/op for Dynamic, got %f", allocs)
 	}
 }
+
+func TestAllocGoBudget(t *testing.T) {
+	step := flow.Go(
+		func(ctx context.Context) error { return nil },
+		func(ctx context.Context) error { return nil },
+		func(ctx context.Context) error { return nil },
+	)
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = step(ctx)
+	})
+
+	if allocs > 10 {
+		t.Fatalf("expected <= 10 allocs/op for Go(3), got %f", allocs)
+	}
+}
+
+func TestAllocGoNBudget(t *testing.T) {
+	steps := make([]flow.Step[context.Context], 10)
+	for i := range steps {
+		steps[i] = func(ctx context.Context) error { return nil }
+	}
+	step := flow.GoN(4, steps...)
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = step(ctx)
+	})
+
+	if allocs > 12 {
+		t.Fatalf("expected <= 12 allocs/op for GoN(4, 10 steps), got %f", allocs)
+	}
+}
+
+func TestAllocDAGDiamondBudget(t *testing.T) {
+	nA := flow.Node("A", func(ctx context.Context) error { return nil })
+	nB := flow.Node("B", func(ctx context.Context) error { return nil }).After("A")
+	nC := flow.Node("C", func(ctx context.Context) error { return nil }).After("A")
+	nD := flow.Node("D", func(ctx context.Context) error { return nil }).After("B", "C")
+	step := flow.DAG(nA, nB, nC, nD)
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = step(ctx)
+	})
+
+	if allocs > 10 {
+		t.Fatalf("expected <= 10 allocs/op for Diamond DAG, got %f", allocs)
+	}
+}
+
+func TestAllocDAGNBudget(t *testing.T) {
+	nA := flow.Node("A", func(ctx context.Context) error { return nil })
+	nB := flow.Node("B", func(ctx context.Context) error { return nil }).After("A")
+	nC := flow.Node("C", func(ctx context.Context) error { return nil }).After("A")
+	nD := flow.Node("D", func(ctx context.Context) error { return nil }).After("B", "C")
+	step := flow.DAGN(2, nA, nB, nC, nD)
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = step(ctx)
+	})
+
+	if allocs > 12 {
+		t.Fatalf("expected <= 12 allocs/op for Diamond DAGN, got %f", allocs)
+	}
+}

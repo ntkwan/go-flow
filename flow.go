@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,15 +28,24 @@ func Go[T context.Context](steps ...Step[T]) Step[T] {
 			return nil
 		}
 		errs := make([]error, len(steps))
+		var hasErr atomic.Bool
 		var wg sync.WaitGroup
 		wg.Add(len(steps))
 		for i, step := range steps {
 			go func(idx int, s Step[T]) {
 				defer wg.Done()
-				errs[idx] = s(ctx)
+				if s != nil {
+					if err := s(ctx); err != nil {
+						errs[idx] = err
+						hasErr.Store(true)
+					}
+				}
 			}(i, step)
 		}
 		wg.Wait()
+		if !hasErr.Load() {
+			return nil
+		}
 		return errors.Join(errs...)
 	}
 }
@@ -160,10 +170,12 @@ func (s Step[T]) Retry(attempts int, delay time.Duration) Step[T] {
 				return nil
 			}
 			if i < attempts-1 && delay > 0 {
+				timer := time.NewTimer(delay)
 				select {
 				case <-ctx.Done():
+					timer.Stop()
 					return ctx.Err()
-				case <-time.After(delay):
+				case <-timer.C:
 				}
 			}
 		}

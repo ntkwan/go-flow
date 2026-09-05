@@ -873,6 +873,113 @@ func TestDAGEdgesExport(t *testing.T) {
 	}
 }
 
+func TestDAGEventDrivenMultiLevel(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+
+	makeNode := func(name string, after ...string) *DAGNode[context.Context] {
+		return Node(name, func(ctx context.Context) error {
+			mu.Lock()
+			order = append(order, name)
+			mu.Unlock()
+			return nil
+		}).After(after...)
+	}
+
+	nA := makeNode("A")
+	nB := makeNode("B", "A")
+	nC := makeNode("C", "A")
+	nD := makeNode("D", "B", "C")
+	nE := makeNode("E", "D")
+
+	dag := DAG(nE, nD, nC, nB, nA)
+	if err := dag(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if len(order) != 5 || order[0] != "A" || order[4] != "E" {
+		t.Fatalf("unexpected execution order: %v", order)
+	}
+}
+
+func TestDAGFailureIsolationInDegree(t *testing.T) {
+	var executedD atomic.Bool
+	errFail := errors.New("node B failed")
+
+	nA := Node("A", func(ctx context.Context) error { return nil })
+	nB := Node("B", func(ctx context.Context) error { return errFail }).After("A")
+	nC := Node("C", func(ctx context.Context) error { return nil }).After("A")
+	nD := Node("D", func(ctx context.Context) error {
+		executedD.Store(true)
+		return nil
+	}).After("B", "C")
+
+	dag := DAG(nA, nB, nC, nD)
+	err := dag(context.Background())
+	if !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+
+	if executedD.Load() {
+		t.Fatal("node D should not execute when dependency B fails")
+	}
+}
+
+func TestDAGConcurrentFailureStart(t *testing.T) {
+	errFail := errors.New("fast failure")
+	nodes := make([]*DAGNode[context.Context], 30)
+	nodes[0] = Node("fail", func(ctx context.Context) error {
+		return errFail
+	})
+	for i := 1; i < 30; i++ {
+		nodes[i] = Node(fmt.Sprintf("node-%d", i), func(ctx context.Context) error {
+			time.Sleep(5 * time.Millisecond)
+			return nil
+		})
+	}
+
+	dag := DAG(nodes...)
+	err := dag(context.Background())
+	if !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+}
+
+func TestDAGNContentionFailure(t *testing.T) {
+	errFail := errors.New("contended failure")
+	n1 := Node("n1", func(ctx context.Context) error {
+		time.Sleep(50 * time.Millisecond)
+		return errFail
+	})
+	n2 := Node("n2", func(ctx context.Context) error {
+		return nil
+	})
+	n3 := Node("n3", func(ctx context.Context) error {
+		return nil
+	})
+
+	dagn := DAGN(1, n1, n2, n3)
+	err := dagn(context.Background())
+	if !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+
+	nodes := make([]*DAGNode[context.Context], 25)
+	nodes[0] = Node("fail", func(ctx context.Context) error {
+		return errFail
+	})
+	for i := 1; i < 25; i++ {
+		nodes[i] = Node(fmt.Sprintf("n-%d", i), func(ctx context.Context) error {
+			time.Sleep(5 * time.Millisecond)
+			return nil
+		})
+	}
+	dagnMany := DAGN(2, nodes...)
+	if err := dagnMany(context.Background()); !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+}
+
 func BenchmarkDAGToMermaid(b *testing.B) {
 	n1 := Node("fetch-user", func(ctx context.Context) error { return nil })
 	n2 := Node("fetch-cart", func(ctx context.Context) error { return nil })

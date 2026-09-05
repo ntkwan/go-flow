@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -216,10 +217,12 @@ func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 }
 
 type compiledDAGNode[T context.Context] struct {
-	name      string
-	step      Step[T]
-	depIdxs   []int
-	condition func(ctx T) bool
+	name       string
+	step       Step[T]
+	depIdxs    []int
+	dependents []int
+	inDegree   int32
+	condition  func(ctx T) bool
 }
 
 func compileDAG[T context.Context](nodes []*DAGNode[T]) ([]compiledDAGNode[T], error) {
@@ -237,9 +240,17 @@ func compileDAG[T context.Context](nodes []*DAGNode[T]) ([]compiledDAGNode[T], e
 		compiled[i].condition = n.condition
 		if len(n.dependsOn) > 0 {
 			compiled[i].depIdxs = make([]int, len(n.dependsOn))
+			compiled[i].inDegree = int32(len(n.dependsOn))
 			for j, dep := range n.dependsOn {
-				compiled[i].depIdxs[j] = nodeIndices[dep]
+				depIdx := nodeIndices[dep]
+				compiled[i].depIdxs[j] = depIdx
 			}
+		}
+	}
+	for i, n := range nodes {
+		for _, dep := range n.dependsOn {
+			depIdx := nodeIndices[dep]
+			compiled[depIdx].dependents = append(compiled[depIdx].dependents, i)
 		}
 	}
 	return compiled, nil
@@ -257,49 +268,73 @@ func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 
 	n := len(compiled)
 	return func(ctx T) error {
-		done := make([]chan struct{}, n)
-		for i := range done {
-			done[i] = make(chan struct{})
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+
 		errs := make([]error, n)
+		var hasErr atomic.Bool
+		var failed atomic.Bool
+		inDegrees := make([]atomic.Int32, n)
+		for i := range compiled {
+			inDegrees[i].Store(compiled[i].inDegree)
+		}
 
 		var wg sync.WaitGroup
-		wg.Add(n)
-		for i := range compiled {
-			go func(idx int) {
-				defer func() {
-					close(done[idx])
-					wg.Done()
-				}()
+		var runNode func(idx int)
 
-				for _, depIdx := range compiled[idx].depIdxs {
-					select {
-					case <-ctx.Done():
-						errs[idx] = ctx.Err()
-						return
-					case <-done[depIdx]:
-						if errs[depIdx] != nil {
-							return
-						}
+		runNode = func(idx int) {
+			defer wg.Done()
+
+			if failed.Load() || ctx.Err() != nil {
+				return
+			}
+
+			if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
+				for _, dep := range compiled[idx].dependents {
+					if inDegrees[dep].Add(-1) == 0 {
+						wg.Add(1)
+						go runNode(dep)
 					}
 				}
+				return
+			}
 
-				if ctx.Err() != nil {
-					errs[idx] = ctx.Err()
+			if compiled[idx].step != nil {
+				if err := compiled[idx].step(ctx); err != nil {
+					errs[idx] = err
+					hasErr.Store(true)
+					failed.Store(true)
 					return
 				}
+			}
 
-				if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
-					return
-				}
+			if failed.Load() || ctx.Err() != nil {
+				return
+			}
 
-				if compiled[idx].step != nil {
-					errs[idx] = compiled[idx].step(ctx)
+			for _, dep := range compiled[idx].dependents {
+				if inDegrees[dep].Add(-1) == 0 {
+					wg.Add(1)
+					go runNode(dep)
 				}
-			}(i)
+			}
+		}
+
+		for i := range compiled {
+			if compiled[i].inDegree == 0 {
+				wg.Add(1)
+				go runNode(i)
+			}
 		}
 
 		wg.Wait()
+		if ctx.Err() != nil && !hasErr.Load() {
+			return ctx.Err()
+		}
+		if !hasErr.Load() {
+			return nil
+		}
 		return errors.Join(errs...)
 	}
 }
@@ -316,57 +351,91 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 
 	n := len(compiled)
 	return func(ctx T) error {
-		done := make([]chan struct{}, n)
-		for i := range done {
-			done[i] = make(chan struct{})
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+
 		errs := make([]error, n)
+		var hasErr atomic.Bool
+		var failed atomic.Bool
+		inDegrees := make([]atomic.Int32, n)
+		for i := range compiled {
+			inDegrees[i].Store(compiled[i].inDegree)
+		}
 
 		sem := make(chan struct{}, limit)
 		var wg sync.WaitGroup
-		wg.Add(n)
-		for i := range compiled {
-			go func(idx int) {
-				defer func() {
-					close(done[idx])
-					wg.Done()
-				}()
+		var runNode func(idx int)
 
-				for _, depIdx := range compiled[idx].depIdxs {
-					select {
-					case <-ctx.Done():
-						errs[idx] = ctx.Err()
-						return
-					case <-done[depIdx]:
-						if errs[depIdx] != nil {
-							return
-						}
+		runNode = func(idx int) {
+			defer wg.Done()
+
+			if failed.Load() || ctx.Err() != nil {
+				return
+			}
+
+			if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
+				for _, dep := range compiled[idx].dependents {
+					if inDegrees[dep].Add(-1) == 0 {
+						wg.Add(1)
+						go runNode(dep)
 					}
 				}
+				return
+			}
 
-				if ctx.Err() != nil {
+			if compiled[idx].step != nil {
+				select {
+				case <-ctx.Done():
 					errs[idx] = ctx.Err()
+					hasErr.Store(true)
+					failed.Store(true)
+					return
+				case sem <- struct{}{}:
+				}
+
+				if failed.Load() || ctx.Err() != nil {
+					<-sem
 					return
 				}
 
-				if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
+				err := compiled[idx].step(ctx)
+				if err != nil {
+					errs[idx] = err
+					hasErr.Store(true)
+					failed.Store(true)
+					<-sem
 					return
 				}
+				<-sem
+			}
 
-				if compiled[idx].step != nil {
-					select {
-					case <-ctx.Done():
-						errs[idx] = ctx.Err()
-						return
-					case sem <- struct{}{}:
-						defer func() { <-sem }()
-						errs[idx] = compiled[idx].step(ctx)
-					}
+			if failed.Load() || ctx.Err() != nil {
+				return
+			}
+
+			for _, dep := range compiled[idx].dependents {
+				if inDegrees[dep].Add(-1) == 0 {
+					wg.Add(1)
+					go runNode(dep)
 				}
-			}(i)
+			}
+		}
+
+		for i := range compiled {
+			if compiled[i].inDegree == 0 {
+				wg.Add(1)
+				go runNode(i)
+			}
 		}
 
 		wg.Wait()
+		if ctx.Err() != nil && !hasErr.Load() {
+			return ctx.Err()
+		}
+		if !hasErr.Load() {
+			return nil
+		}
 		return errors.Join(errs...)
 	}
 }

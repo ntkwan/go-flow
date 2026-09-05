@@ -5,6 +5,7 @@ import (
 	"errors"
 	"iter"
 	"sync"
+	"sync/atomic"
 )
 
 func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
@@ -15,21 +16,36 @@ func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 		return Go(steps...)
 	}
 	return func(ctx T) error {
-		errs := make([]error, len(steps))
+		n := len(steps)
+		errs := make([]error, n)
+		var hasErr atomic.Bool
+		var taskIdx atomic.Int32
 		var wg sync.WaitGroup
-		sem := make(chan struct{}, limit)
-		for i, step := range steps {
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(idx int, s Step[T]) {
-				defer func() {
-					<-sem
-					wg.Done()
-				}()
-				errs[idx] = s(ctx)
-			}(i, step)
+
+		workers := limit
+
+		wg.Add(workers)
+		for range workers {
+			go func() {
+				defer wg.Done()
+				for {
+					idx := int(taskIdx.Add(1) - 1)
+					if idx >= n {
+						return
+					}
+					if s := steps[idx]; s != nil {
+						if err := s(ctx); err != nil {
+							errs[idx] = err
+							hasErr.Store(true)
+						}
+					}
+				}
+			}()
 		}
 		wg.Wait()
+		if !hasErr.Load() {
+			return nil
+		}
 		return errors.Join(errs...)
 	}
 }

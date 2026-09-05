@@ -36,6 +36,29 @@ func TestGoNSuccess(t *testing.T) {
 	}
 }
 
+func TestGoNHighVolume(t *testing.T) {
+	const total = 1000
+	const limit = 8
+
+	var count atomic.Int32
+	steps := make([]Step[context.Context], total)
+	for i := range steps {
+		steps[i] = func(ctx context.Context) error {
+			count.Add(1)
+			return nil
+		}
+	}
+
+	step := GoN(limit, steps...)
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if count.Load() != total {
+		t.Fatalf("expected %d executions, got %d", total, count.Load())
+	}
+}
+
 func TestGoNLimitZeroOrNegative(t *testing.T) {
 	var count atomic.Int32
 	step := GoN(
