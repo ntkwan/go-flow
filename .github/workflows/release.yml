@@ -16,6 +16,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify Tag is on main Branch
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Release tag ${{ github.ref_name }} is not on the main branch. Aborting release."
+            exit 1
+          fi
+          echo "Release tag ${{ github.ref_name }} verified on main branch."
+
       - uses: actions/setup-go@v7
         with:
           go-version: '1.27'
