@@ -1,6 +1,9 @@
-.PHONY: all test test-race cover bdd uat fmt lint lint-actions check bench clean
+.PHONY: all test test-race cover bdd uat fmt lint lint-actions check bench clean gen
 
 all: check lint lint-actions test-race bdd
+
+gen:
+	go run ./cmd/gen-diagrams
 
 test:
 	go test -v ./...
@@ -39,6 +42,7 @@ check:
 		exit 1; \
 	fi
 	go vet ./...
+	@go run ./cmd/gen-diagrams --check
 
 bench:
 	go test -v -bench=. -benchmem -run=^$$ ./...

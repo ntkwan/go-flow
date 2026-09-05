@@ -62,6 +62,9 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Documentation Diagrams Sync
+        run: go run ./cmd/gen-diagrams --check
+
   lint:
     runs-on: ubuntu-latest
     steps:

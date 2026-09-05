@@ -80,10 +80,38 @@ func runWithBoundedConcurrency(ctx context.Context) {
 	}
 }
 
+func runWithVisualExport(ctx context.Context) {
+	fmt.Println("--- Style 5: Visual Graph Export (Mermaid & DOT) ---")
+	userNode := flow.Node("fetch-user", fetchUser)
+	cartNode := flow.Node("fetch-cart", fetchCart)
+	paymentNode := flow.Node("process-payment", processPayment).After("fetch-user", "fetch-cart")
+	receiptNode := flow.Node("send-receipt", sendReceipt).After("process-payment")
+
+	plan := flow.NewDAG(userNode, cartNode, paymentNode, receiptNode)
+
+	mermaid, err := plan.ToMermaid()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Mermaid Output:\n" + mermaid)
+
+	dot, err := plan.ToDOT()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("DOT Output:\n" + dot)
+
+	graph := plan.Step()
+	if err := graph(ctx); err != nil {
+		panic(err)
+	}
+}
+
 func main() {
 	ctx := context.Background()
 	runWithPureFunctionEdges(ctx)
 	runWithEdgeHelper(ctx)
 	runWithNamedNodes(ctx)
 	runWithBoundedConcurrency(ctx)
+	runWithVisualExport(ctx)
 }

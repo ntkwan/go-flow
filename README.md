@@ -58,6 +58,9 @@ graph LR
 
 ## Quick Start
 
+> [!TIP]
+> Fully runnable, side-by-side comparative examples with and without `go-flow` are available in the [`examples/`](examples) directory.
+
 ### 1. Fluent Method Chaining
 
 Every `Step[T]` provides fluent receiver methods for composition, conditional execution, and resilience:
@@ -77,7 +80,11 @@ if err := pipeline.Exec(ctx); err != nil {
 }
 ```
 
+*Examples: [Retry](examples/retry/with_flow/main.go) | [Timeout](examples/timeout/with_flow/main.go) | [Fallback](examples/fallback/with_flow/main.go) | [Middleware Wrap](examples/wrap/with_flow/main.go)*
+
 ### 2. Sequential Execution (`Seq`)
+
+*See runnable example: [`examples/seq/with_flow`](examples/seq/with_flow/main.go) vs [`examples/seq/without_flow`](examples/seq/without_flow/main.go)*
 
 ```go
 package main
@@ -109,6 +116,8 @@ func main() {
 
 ### 3. Parallel Execution (`Go`)
 
+*See runnable example: [`examples/go/with_flow`](examples/go/with_flow/main.go) vs [`examples/go/without_flow`](examples/go/without_flow/main.go)*
+
 ```go
 workflow := flow.Go(
 	func(ctx context.Context) error { return fetchUserProfile(ctx) },
@@ -123,6 +132,8 @@ if err := workflow(ctx); err != nil {
 ```
 
 ### 4. Bounded Concurrency (`GoN`)
+
+*See runnable example: [`examples/gon/with_flow`](examples/gon/with_flow/main.go) vs [`examples/gon/without_flow`](examples/gon/without_flow/main.go)*
 
 ```go
 var steps []flow.Step[context.Context]
@@ -141,6 +152,8 @@ if err := pipeline(ctx); err != nil {
 
 ### 5. Speculative Racing (`Race`)
 
+*See runnable example: [`examples/race/with_flow`](examples/race/with_flow/main.go) vs [`examples/race/without_flow`](examples/race/without_flow/main.go)*
+
 ```go
 // Query multiple replicas or fallbacks; returns on first success and cancels the others
 fastest := flow.Race(
@@ -156,6 +169,8 @@ if err := fastest(ctx); err != nil {
 
 ### 6. Iterator Streaming (`Each`, `Each2`)
 
+*See runnable example: [`examples/each/with_flow`](examples/each/with_flow/main.go) vs [`examples/each/without_flow`](examples/each/without_flow/main.go)*
+
 ```go
 items := slices.Values([]string{"order-1", "order-2", "order-3"})
 
@@ -170,6 +185,8 @@ if err := stream(ctx); err != nil {
 
 ### 7. Idempotent Execution (`Once`)
 
+*See runnable example: [`examples/once/with_flow`](examples/once/with_flow/main.go) vs [`examples/once/without_flow`](examples/once/without_flow/main.go)*
+
 ```go
 // Ensure expensive initialization or connection warmup runs only once
 initDB := flow.Once(func(ctx context.Context) error {
@@ -181,6 +198,8 @@ stepB := flow.Seq(initDB, queryOrders)
 ```
 
 ### 8. Directed Acyclic Graph (`DAG`)
+
+*See runnable example: [`examples/dag/with_flow`](examples/dag/with_flow/main.go) vs [`examples/dag/without_flow`](examples/dag/without_flow/main.go)*
 
 `go-flow` provides multiple ways to define and execute dependency graphs:
 
@@ -246,6 +265,41 @@ pipeline := flow.DAGEdgesN(2,
 boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
 ```
 
+#### D. Visual Graph Export (Mermaid & Graphviz DOT)
+
+*See runnable example: [`examples/order_checkout/with_flow`](examples/order_checkout/with_flow/main.go) vs [`examples/order_checkout/without_flow`](examples/order_checkout/without_flow/main.go)*
+
+Generate Mermaid diagrams or Graphviz DOT graphs for documentation, visual telemetry, and debugging:
+
+```go
+plan := flow.NewDAG(userNode, cartNode, paymentNode, receiptNode)
+
+// Export to Mermaid markdown syntax
+mermaid, err := plan.ToMermaid()
+fmt.Println(mermaid)
+
+// Export to Graphviz DOT syntax
+dot, err := plan.ToDOT()
+
+// Execute as Step[T] or bounded Step[T]
+pipeline := plan.Step()
+// Or with concurrency limit:
+// pipeline := plan.StepN(2)
+```
+
+**Generated Mermaid Diagram:**
+
+<!-- AUTO-GENERATED-DAG:START -->
+```mermaid
+graph TD
+    fetch_user["fetch-user"] --> process_payment["process-payment"]
+    fetch_cart["fetch-cart"] --> process_payment["process-payment"]
+    process_payment["process-payment"] --> send_receipt["send-receipt"]
+```
+<!-- AUTO-GENERATED-DAG:END -->
+
+Standalone export functions (`flow.DAGToMermaid`, `flow.DAGToDOT`, `flow.DAGEdgesToMermaid`, `flow.DAGEdgesToDOT`) are also available.
+
 ### 9. Custom Domain Contexts (`Step[T]`)
 
 `Step[T]` is generic over any type satisfying `context.Context`, providing compile-time type safety for domain workflows without type assertions:
@@ -291,6 +345,8 @@ if err := orderPipeline(orderCtx); err != nil {
 
 ### 10. Conditional Branching (`Branch`)
 
+*See runnable example: [`examples/branch/with_flow`](examples/branch/with_flow/main.go) vs [`examples/branch/without_flow`](examples/branch/without_flow/main.go)*
+
 Execute different branches dynamically based on context or state:
 
 ```go
@@ -312,6 +368,8 @@ pipeline := validateOrder.
 ```
 
 ### 11. Typed Functional Piping & Streaming (`Pipe`, `PipeSeq`)
+
+*See runnable example: [`examples/pipe/with_flow`](examples/pipe/with_flow/main.go) vs [`examples/pipe/without_flow`](examples/pipe/without_flow/main.go)*
 
 Bridge pure functions and typed value transformations cleanly into workflows and stream processing:
 

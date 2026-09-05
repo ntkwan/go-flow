@@ -27,6 +27,7 @@ type patternsContext struct {
 	maxActive       atomic.Int32
 	scatterResults  []string
 	gatheredResults []string
+	mermaidOutput   string
 }
 
 func newPatternsContext() *patternsContext {
@@ -342,6 +343,56 @@ func (c *patternsContext) theScattergatherWorkflowSucceeds() error {
 	return nil
 }
 
+func (c *patternsContext) aDAGWithDependencyBetweenAnd(from, to string) error {
+	c.nodes[from] = flow.Node(from, func(ctx context.Context) error { return nil })
+	c.nodes[to] = flow.Node(to, func(ctx context.Context) error { return nil }).After(from)
+	return nil
+}
+
+func (c *patternsContext) aDAGWithAnIsolatedNode(name string) error {
+	c.nodes[name] = flow.Node(name, func(ctx context.Context) error { return nil })
+	return nil
+}
+
+func (c *patternsContext) theDAGIsExportedToMermaidFormat() error {
+	var nodeList []*flow.DAGNode[context.Context]
+	for _, n := range c.nodes {
+		nodeList = append(nodeList, n)
+	}
+	out, err := flow.DAGToMermaid(nodeList...)
+	if err != nil {
+		return err
+	}
+	c.mermaidOutput = out
+	return nil
+}
+
+func (c *patternsContext) theMermaidOutputContainsEdgeFromTo(from, to string) error {
+	escapedFrom := strings.ReplaceAll(from, "-", "_")
+	escapedTo := strings.ReplaceAll(to, "-", "_")
+	expectedEdge := fmt.Sprintf("%s[\"%s\"] --> %s[\"%s\"]", escapedFrom, from, escapedTo, to)
+	if !strings.Contains(c.mermaidOutput, expectedEdge) {
+		return fmt.Errorf("expected mermaid output to contain %q, got:\n%s", expectedEdge, c.mermaidOutput)
+	}
+	return nil
+}
+
+func (c *patternsContext) theMermaidOutputStartsWith(prefix string) error {
+	if !strings.HasPrefix(c.mermaidOutput, prefix) {
+		return fmt.Errorf("expected mermaid output to start with %q, got:\n%s", prefix, c.mermaidOutput)
+	}
+	return nil
+}
+
+func (c *patternsContext) theMermaidOutputContainsNode(name string) error {
+	escaped := strings.ReplaceAll(name, "-", "_")
+	expectedNode := fmt.Sprintf("%s[\"%s\"]", escaped, name)
+	if !strings.Contains(c.mermaidOutput, expectedNode) {
+		return fmt.Errorf("expected mermaid output to contain %q, got:\n%s", expectedNode, c.mermaidOutput)
+	}
+	return nil
+}
+
 func registerPatternsSteps(ctx *godog.ScenarioContext) {
 	c := newPatternsContext()
 	ctx.Step(`^a DAG with root node "([^"]*)"$`, c.aDAGWithRootNode)
@@ -373,4 +424,11 @@ func registerPatternsSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the scatter-gather workflow is executed$`, c.theScattergatherWorkflowIsExecuted)
 	ctx.Step(`^the aggregate contains "([^"]*)", "([^"]*)", "([^"]*)"$`, c.theAggregateContains)
 	ctx.Step(`^the scatter-gather workflow succeeds$`, c.theScattergatherWorkflowSucceeds)
+
+	ctx.Step(`^a DAG with dependency between "([^"]*)" and "([^"]*)"$`, c.aDAGWithDependencyBetweenAnd)
+	ctx.Step(`^a DAG with an isolated node "([^"]*)"$`, c.aDAGWithAnIsolatedNode)
+	ctx.Step(`^the DAG is exported to Mermaid format$`, c.theDAGIsExportedToMermaidFormat)
+	ctx.Step(`^the Mermaid output contains edge from "([^"]*)" to "([^"]*)"$`, c.theMermaidOutputContainsEdgeFromTo)
+	ctx.Step(`^the Mermaid output starts with "([^"]*)"$`, c.theMermaidOutputStartsWith)
+	ctx.Step(`^the Mermaid output contains node "([^"]*)"$`, c.theMermaidOutputContainsNode)
 }

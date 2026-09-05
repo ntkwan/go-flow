@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -316,4 +317,148 @@ func DAGEdgesN[T context.Context](limit int, connections ...DAGConnection[T]) St
 		return func(ctx T) error { return err }
 	}
 	return DAGN(limit, nodes...)
+}
+
+type DAGPlan[T context.Context] struct {
+	nodes []*DAGNode[T]
+}
+
+func NewDAG[T context.Context](nodes ...*DAGNode[T]) *DAGPlan[T] {
+	return &DAGPlan[T]{nodes: nodes}
+}
+
+func NewDAGEdges[T context.Context](connections ...DAGConnection[T]) (*DAGPlan[T], error) {
+	nodes, err := buildNodesFromConnections(connections)
+	if err != nil {
+		return nil, err
+	}
+	return &DAGPlan[T]{nodes: nodes}, nil
+}
+
+func (p *DAGPlan[T]) Step() Step[T] {
+	if p == nil {
+		return func(ctx T) error { return nil }
+	}
+	return DAG(p.nodes...)
+}
+
+func (p *DAGPlan[T]) StepN(limit int) Step[T] {
+	if p == nil {
+		return func(ctx T) error { return nil }
+	}
+	return DAGN(limit, p.nodes...)
+}
+
+func (p *DAGPlan[T]) ToMermaid() (string, error) {
+	if p == nil {
+		return "graph TD", nil
+	}
+	return DAGToMermaid(p.nodes...)
+}
+
+func (p *DAGPlan[T]) ToDOT() (string, error) {
+	if p == nil {
+		return "digraph DAG {\n}", nil
+	}
+	return DAGToDOT(p.nodes...)
+}
+
+func escapeMermaidID(name string) string {
+	var sb strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			sb.WriteRune(r)
+		} else {
+			sb.WriteRune('_')
+		}
+	}
+	s := sb.String()
+	if s == "" {
+		return "node"
+	}
+	if s[0] >= '0' && s[0] <= '9' {
+		return "n_" + s
+	}
+	return s
+}
+
+func DAGToMermaid[T context.Context](nodes ...*DAGNode[T]) (string, error) {
+	if len(nodes) == 0 {
+		return "graph TD", nil
+	}
+	if err := validateDAG(nodes); err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString("graph TD\n")
+
+	hasEdge := make(map[string]bool, len(nodes))
+	for _, n := range nodes {
+		for _, dep := range n.dependsOn {
+			hasEdge[dep] = true
+			hasEdge[n.name] = true
+			fmt.Fprintf(&sb, "    %s[\"%s\"] --> %s[\"%s\"]\n", escapeMermaidID(dep), dep, escapeMermaidID(n.name), n.name)
+		}
+	}
+
+	for _, n := range nodes {
+		if !hasEdge[n.name] {
+			fmt.Fprintf(&sb, "    %s[\"%s\"]\n", escapeMermaidID(n.name), n.name)
+		}
+	}
+
+	return strings.TrimRight(sb.String(), "\n"), nil
+}
+
+func DAGToDOT[T context.Context](nodes ...*DAGNode[T]) (string, error) {
+	if len(nodes) == 0 {
+		return "digraph DAG {\n}", nil
+	}
+	if err := validateDAG(nodes); err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString("digraph DAG {\n")
+
+	hasEdge := make(map[string]bool, len(nodes))
+	for _, n := range nodes {
+		for _, dep := range n.dependsOn {
+			hasEdge[dep] = true
+			hasEdge[n.name] = true
+			fmt.Fprintf(&sb, "  \"%s\" -> \"%s\";\n", dep, n.name)
+		}
+	}
+
+	for _, n := range nodes {
+		if !hasEdge[n.name] {
+			fmt.Fprintf(&sb, "  \"%s\";\n", n.name)
+		}
+	}
+
+	sb.WriteString("}")
+	return sb.String(), nil
+}
+
+func DAGEdgesToMermaid[T context.Context](connections ...DAGConnection[T]) (string, error) {
+	if len(connections) == 0 {
+		return "graph TD", nil
+	}
+	nodes, err := buildNodesFromConnections(connections)
+	if err != nil {
+		return "", err
+	}
+	return DAGToMermaid(nodes...)
+}
+
+func DAGEdgesToDOT[T context.Context](connections ...DAGConnection[T]) (string, error) {
+	if len(connections) == 0 {
+		return "digraph DAG {\n}", nil
+	}
+	nodes, err := buildNodesFromConnections(connections)
+	if err != nil {
+		return "", err
+	}
+	return DAGToDOT(nodes...)
 }
