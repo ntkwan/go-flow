@@ -6,12 +6,14 @@ on:
     paths:
       - '**.md'
       - '.markdownlint-cli2.jsonc'
+      - '.lycheeignore'
       - '.github/workflows/markdown.yml'
   pull_request:
     branches: [ main ]
     paths:
       - '**.md'
       - '.markdownlint-cli2.jsonc'
+      - '.lycheeignore'
       - '.github/workflows/markdown.yml'
 
 jobs:
