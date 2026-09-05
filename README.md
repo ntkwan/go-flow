@@ -17,7 +17,7 @@ A high-performance, minimalist Go workflow and step execution engine designed fo
 - **Speculative Racing (`Race`)**: Races steps concurrently, returning immediately on first success while canceling losing branches.
 - **Iterator Streaming (`Each`, `Each2`)**: Streams Go `iter.Seq` and `iter.Seq2` sequences directly through step pipelines.
 - **Idempotent Step (`Once`)**: Guarantees a step executes at most once across workflows and branches.
-- **Topological DAG Engine (`DAG`, `Node`)**: Declarative directed acyclic graph execution with cycle validation and maximal branch concurrency.
+- **Topological DAG Engine**: Declarative directed acyclic graph execution with cycle validation, maximal branch concurrency, pure function edges (`DAGEdges`, `From.To`, `Edge`), named nodes (`DAG`, `Node.After`), and bounded concurrency (`DAGN`, `DAGEdgesN`).
 - **Zero Dependencies**: 100% standard library.
 
 ## Installation
@@ -152,22 +152,68 @@ stepB := flow.Seq(initDB, queryOrders)
 
 ### 8. Directed Acyclic Graph (`DAG`)
 
-```go
-userNode := flow.Node("fetch-user", fetchUserStep)
-cartNode := flow.Node("fetch-cart", fetchCartStep)
+`go-flow` provides multiple ways to define and execute dependency graphs:
 
-paymentNode := flow.Node("process-payment", processPaymentStep).
+#### A. Pure Function Edges (`From.To` / `Edge`)
+
+Wire functions directly into dependency graphs without string keys:
+
+```go
+// Using From(...).To(...) fluent syntax
+pipeline := flow.DAGEdges(
+	flow.From(fetchUser).To(processPayment),
+	flow.From(fetchCart).To(processPayment),
+	flow.From(processPayment).To(sendReceipt),
+)
+
+// Or using Edge(...) helper
+pipeline := flow.DAGEdges(
+	flow.Edge(fetchUser, processPayment),
+	flow.Edge(fetchCart, processPayment),
+	flow.Edge(processPayment, sendReceipt),
+)
+
+if err := pipeline(ctx); err != nil {
+	log.Println("DAG execution failed:", err)
+}
+```
+
+#### B. Named Nodes (`Node` + `.After`)
+
+Define explicit node identifiers for self-documenting workflows and logging:
+
+```go
+userNode := flow.Node("fetch-user", fetchUser)
+cartNode := flow.Node("fetch-cart", fetchCart)
+
+paymentNode := flow.Node("process-payment", processPayment).
 	After("fetch-user", "fetch-cart")
 
-notifyNode := flow.Node("send-receipt", sendReceiptStep).
+receiptNode := flow.Node("send-receipt", sendReceipt).
 	After("process-payment")
 
 // Independent branches ("fetch-user" and "fetch-cart") run in parallel.
-// "process-payment" runs only after both complete.
-graph := flow.DAG(userNode, cartNode, paymentNode, notifyNode)
-if err := graph(ctx); err != nil {
+// "process-payment" runs only after both dependencies succeed.
+pipeline := flow.DAG(userNode, cartNode, paymentNode, receiptNode)
+if err := pipeline(ctx); err != nil {
 	log.Println("DAG execution failed:", err)
 }
+```
+
+#### C. Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN`)
+
+Cap the maximum number of concurrent in-flight nodes across the graph:
+
+```go
+// Throttle DAG execution to at most 2 concurrent node workers
+pipeline := flow.DAGEdgesN(2,
+	flow.From(fetchUser).To(processPayment),
+	flow.From(fetchCart).To(processPayment),
+	flow.From(processPayment).To(sendReceipt),
+)
+
+// Or with named nodes
+boundedDAG := flow.DAGN(2, userNode, cartNode, paymentNode, receiptNode)
 ```
 
 ## License
