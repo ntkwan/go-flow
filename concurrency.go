@@ -115,3 +115,60 @@ func Once[T context.Context](step Step[T]) Step[T] {
 		return err
 	}
 }
+
+func Chunk[T context.Context, V any](seq iter.Seq[V], size int, step func(ctx T, batch []V) error) Step[T] {
+	return func(ctx T) error {
+		if seq == nil || step == nil {
+			return nil
+		}
+		if size <= 0 {
+			size = 1
+		}
+		batch := make([]V, 0, size)
+		for item := range seq {
+			batch = append(batch, item)
+			if len(batch) == size {
+				if err := step(ctx, batch); err != nil {
+					return err
+				}
+				batch = make([]V, 0, size)
+			}
+		}
+		if len(batch) > 0 {
+			if err := step(ctx, batch); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func Chunk2[T context.Context, K, V any](seq iter.Seq2[K, V], size int, step func(ctx T, keys []K, vals []V) error) Step[T] {
+	return func(ctx T) error {
+		if seq == nil || step == nil {
+			return nil
+		}
+		if size <= 0 {
+			size = 1
+		}
+		keys := make([]K, 0, size)
+		vals := make([]V, 0, size)
+		for k, v := range seq {
+			keys = append(keys, k)
+			vals = append(vals, v)
+			if len(keys) == size {
+				if err := step(ctx, keys, vals); err != nil {
+					return err
+				}
+				keys = make([]K, 0, size)
+				vals = make([]V, 0, size)
+			}
+		}
+		if len(keys) > 0 {
+			if err := step(ctx, keys, vals); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}

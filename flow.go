@@ -211,3 +211,18 @@ func (s Step[T]) Unless(predicate func(ctx T) bool) Step[T] {
 		return s(ctx)
 	}
 }
+
+type Middleware[T context.Context] func(next Step[T]) Step[T]
+
+func (s Step[T]) Wrap(middlewares ...Middleware[T]) Step[T] {
+	if s == nil {
+		return func(ctx T) error { return nil }
+	}
+	wrapped := s
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		if mw := middlewares[i]; mw != nil {
+			wrapped = mw(wrapped)
+		}
+	}
+	return wrapped
+}

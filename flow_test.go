@@ -563,6 +563,51 @@ func TestStepMethodUnless(t *testing.T) {
 	}
 }
 
+func TestStepMethodWrap(t *testing.T) {
+	var nilStep Step[context.Context]
+	if err := nilStep.Wrap()(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil step, got %v", err)
+	}
+
+	var executionOrder []string
+	mw1 := func(next Step[context.Context]) Step[context.Context] {
+		return func(ctx context.Context) error {
+			executionOrder = append(executionOrder, "mw1_before")
+			err := next(ctx)
+			executionOrder = append(executionOrder, "mw1_after")
+			return err
+		}
+	}
+	mw2 := func(next Step[context.Context]) Step[context.Context] {
+		return func(ctx context.Context) error {
+			executionOrder = append(executionOrder, "mw2_before")
+			err := next(ctx)
+			executionOrder = append(executionOrder, "mw2_after")
+			return err
+		}
+	}
+
+	coreStep := Step[context.Context](func(ctx context.Context) error {
+		executionOrder = append(executionOrder, "core")
+		return nil
+	})
+
+	wrapped := coreStep.Wrap(mw1, nil, mw2)
+	if err := wrapped(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	expected := []string{"mw1_before", "mw2_before", "core", "mw2_after", "mw1_after"}
+	if len(executionOrder) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, executionOrder)
+	}
+	for i, v := range expected {
+		if executionOrder[i] != v {
+			t.Fatalf("at index %d: expected %s, got %s", i, v, executionOrder[i])
+		}
+	}
+}
+
 func BenchmarkSeq(b *testing.B) {
 	step := Seq(
 		func(ctx context.Context) error { return nil },

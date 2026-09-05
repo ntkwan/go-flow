@@ -3,6 +3,7 @@ package flow
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -280,6 +281,150 @@ func BenchmarkDAG(b *testing.B) {
 	n4 := Node("d", func(ctx context.Context) error { return nil }).After("b", "c")
 
 	step := DAG(n1, n2, n3, n4)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = step(ctx)
+	}
+}
+
+func TestDAGN(t *testing.T) {
+	if err := DAGN[context.Context](2)(context.Background()); err != nil {
+		t.Fatalf("expected nil error for empty DAGN, got %v", err)
+	}
+
+	n1 := Node("1", func(ctx context.Context) error { return nil })
+	n2 := Node("2", func(ctx context.Context) error { return nil })
+	if err := DAGN(0, n1, n2)(context.Background()); err != nil {
+		t.Fatalf("expected nil error for limit <= 0, got %v", err)
+	}
+
+	if err := DAGN(5, n1, n2)(context.Background()); err != nil {
+		t.Fatalf("expected nil error for limit >= len, got %v", err)
+	}
+
+	var active atomic.Int32
+	var maxActive atomic.Int32
+	nodes := make([]*DAGNode[context.Context], 8)
+	for i := range nodes {
+		nodes[i] = Node(fmt.Sprintf("n%d", i), func(ctx context.Context) error {
+			cur := active.Add(1)
+			for {
+				old := maxActive.Load()
+				if cur <= old || maxActive.CompareAndSwap(old, cur) {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+			active.Add(-1)
+			return nil
+		})
+	}
+
+	step := DAGN(2, nodes...)
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if maxActive.Load() > 2 {
+		t.Fatalf("expected max active <= 2, got %d", maxActive.Load())
+	}
+
+	errBadDAG := DAGN(2, Node("", func(ctx context.Context) error { return nil }))(context.Background())
+	if errBadDAG == nil {
+		t.Fatal("expected error on invalid DAG, got nil")
+	}
+
+	errFail := errors.New("node failure")
+	nFail := Node("fail", func(ctx context.Context) error { return errFail })
+	nAfter := Node("after", func(ctx context.Context) error { return nil }).After("fail")
+	stepFail := DAGN(1, nFail, nAfter)
+	if err := stepFail(context.Background()); !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+
+	ctxPreCancel, cancel := context.WithCancel(context.Background())
+	cancel()
+	nCancel := Node("cancel", func(ctx context.Context) error { return nil })
+	if err := DAGN(1, nCancel)(ctxPreCancel); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	ctxSlow, cancelSlow := context.WithCancel(context.Background())
+	nSlow := Node("slow", func(ctx context.Context) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	nBlocked := Node("blocked", func(ctx context.Context) error {
+		return nil
+	}).After("slow")
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancelSlow()
+	}()
+	if err := DAGN(1, nSlow, nBlocked)(ctxSlow); err == nil {
+		t.Fatal("expected cancel error, got nil")
+	}
+
+	nNilStep := Node[context.Context]("nilStep", nil)
+	nOther := Node("other", func(ctx context.Context) error { return nil })
+	if err := DAGN(1, nNilStep, nOther)(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil step node in DAGN, got %v", err)
+	}
+
+	ctxSemCancel, cancelSem := context.WithCancel(context.Background())
+	nBlocker1 := Node("blocker1", func(ctx context.Context) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	nBlocker2 := Node("blocker2", func(ctx context.Context) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	nBlocker3 := Node("blocker3", func(ctx context.Context) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancelSem()
+	}()
+	if err := DAGN(1, nBlocker1, nBlocker2, nBlocker3)(ctxSemCancel); err == nil {
+		t.Fatal("expected cancel error on semaphore acquisition, got nil")
+	}
+
+	errDepFail := errors.New("upstream failed in DAGN")
+	nUp := Node("up", func(ctx context.Context) error { return errDepFail })
+	nDown := Node("down", func(ctx context.Context) error { return nil }).After("up")
+	if err := DAGN(1, nUp, nDown)(context.Background()); !errors.Is(err, errDepFail) {
+		t.Fatalf("expected %v, got %v", errDepFail, err)
+	}
+
+	ctxDepCancel, cancelDep := context.WithCancel(context.Background())
+	nSlowDep := Node("slowDep", func(ctx context.Context) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	nWaitingDep := Node("waitingDep", func(ctx context.Context) error {
+		return nil
+	}).After("slowDep")
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancelDep()
+	}()
+	if err := DAGN(1, nSlowDep, nWaitingDep)(ctxDepCancel); err == nil {
+		t.Fatal("expected cancel error while waiting on dependency, got nil")
+	}
+}
+
+func BenchmarkDAGN(b *testing.B) {
+	n1 := Node("a", func(ctx context.Context) error { return nil })
+	n2 := Node("b", func(ctx context.Context) error { return nil }).After("a")
+	n3 := Node("c", func(ctx context.Context) error { return nil }).After("a")
+	n4 := Node("d", func(ctx context.Context) error { return nil }).After("b", "c")
+
+	step := DAGN(2, n1, n2, n3, n4)
 	ctx := context.Background()
 
 	b.ResetTimer()

@@ -418,3 +418,137 @@ func BenchmarkEach(b *testing.B) {
 		_ = step(ctx)
 	}
 }
+
+func TestChunk(t *testing.T) {
+	stepNil := Chunk[context.Context, int](nil, 2, func(ctx context.Context, batch []int) error {
+		return nil
+	})
+	if err := stepNil(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil seq, got %v", err)
+	}
+
+	stepNilFunc := Chunk[context.Context, int](slices.Values([]int{1, 2}), 2, nil)
+	if err := stepNilFunc(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil func, got %v", err)
+	}
+
+	var batches [][]int
+	step := Chunk(slices.Values([]int{1, 2, 3, 4, 5}), 2, func(ctx context.Context, batch []int) error {
+		batches = append(batches, batch)
+		return nil
+	})
+
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if len(batches) != 3 {
+		t.Fatalf("expected 3 batches, got %d", len(batches))
+	}
+	if len(batches[0]) != 2 || len(batches[1]) != 2 || len(batches[2]) != 1 {
+		t.Fatalf("unexpected batch sizes: %v", batches)
+	}
+
+	stepZeroSize := Chunk(slices.Values([]int{10, 20}), 0, func(ctx context.Context, batch []int) error {
+		if len(batch) != 1 {
+			t.Fatalf("expected size 1 batch for zero limit, got %d", len(batch))
+		}
+		return nil
+	})
+	if err := stepZeroSize(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	errFail := errors.New("fail on batch 2")
+	stepErr := Chunk(slices.Values([]int{1, 2, 3, 4}), 2, func(ctx context.Context, batch []int) error {
+		if batch[0] == 3 {
+			return errFail
+		}
+		return nil
+	})
+	if err := stepErr(context.Background()); !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+
+	stepErrLast := Chunk(slices.Values([]int{1, 2, 3}), 2, func(ctx context.Context, batch []int) error {
+		if batch[0] == 3 {
+			return errFail
+		}
+		return nil
+	})
+	if err := stepErrLast(context.Background()); !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+}
+
+func TestChunk2(t *testing.T) {
+	stepNil := Chunk2[context.Context, string, int](nil, 2, func(ctx context.Context, keys []string, vals []int) error {
+		return nil
+	})
+	if err := stepNil(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil seq, got %v", err)
+	}
+
+	stepNilFunc := Chunk2[context.Context, string, int](func(yield func(string, int) bool) {}, 2, nil)
+	if err := stepNilFunc(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil func, got %v", err)
+	}
+
+	seq := func(yield func(string, int) bool) {
+		if !yield("a", 1) {
+			return
+		}
+		if !yield("b", 2) {
+			return
+		}
+		if !yield("c", 3) {
+			return
+		}
+	}
+
+	var collectedKeys [][]string
+	var collectedVals [][]int
+	step := Chunk2(seq, 2, func(ctx context.Context, keys []string, vals []int) error {
+		collectedKeys = append(collectedKeys, keys)
+		collectedVals = append(collectedVals, vals)
+		return nil
+	})
+
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(collectedKeys) != 2 || len(collectedVals) != 2 {
+		t.Fatalf("expected 2 chunks, got %d", len(collectedKeys))
+	}
+
+	stepZeroSize := Chunk2(seq, 0, func(ctx context.Context, keys []string, vals []int) error {
+		if len(keys) != 1 {
+			t.Fatalf("expected size 1, got %d", len(keys))
+		}
+		return nil
+	})
+	if err := stepZeroSize(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	errFail := errors.New("fail on batch 1")
+	stepErr := Chunk2(seq, 2, func(ctx context.Context, keys []string, vals []int) error {
+		if len(keys) == 2 {
+			return errFail
+		}
+		return nil
+	})
+	if err := stepErr(context.Background()); !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+
+	stepErrLast := Chunk2(seq, 2, func(ctx context.Context, keys []string, vals []int) error {
+		if len(keys) == 1 {
+			return errFail
+		}
+		return nil
+	})
+	if err := stepErrLast(context.Background()); !errors.Is(err, errFail) {
+		t.Fatalf("expected %v, got %v", errFail, err)
+	}
+}
