@@ -1,6 +1,6 @@
-.PHONY: all test test-race cover fmt lint check bench clean
+.PHONY: all test test-race cover fmt lint lint-actions check bench clean
 
-all: check lint test-race
+all: check lint lint-actions test-race
 
 test:
 	go test -v ./...
@@ -17,6 +17,13 @@ fmt:
 
 lint:
 	golangci-lint run ./...
+
+lint-actions:
+	@if command -v actionlint >/dev/null 2>&1; then \
+		actionlint; \
+	else \
+		echo "actionlint not installed, skipping..."; \
+	fi
 
 check:
 	@UNFORMATTED=$$(gofmt -l .); \

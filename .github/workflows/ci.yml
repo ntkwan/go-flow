@@ -3,8 +3,20 @@ name: CI
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '.github/dependabot.yml'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '.github/dependabot.yml'
 
 jobs:
   commit-lint:
@@ -15,15 +27,20 @@ jobs:
           fetch-depth: 0
       - name: Verify Conventional Commits
         run: |
-          PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9_-]+\))?!?: .+$|^Initial commit$"
+          PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9_-]+\))?!?: .+$|^Initial commit$|^Merge .+$"
           FAILED=0
+          if [ -n "$GITHUB_BASE_REF" ]; then
+            COMMITS=$(git log --no-merges --format=%s "origin/$GITHUB_BASE_REF..HEAD")
+          else
+            COMMITS=$(git log --no-merges --format=%s -n 1 HEAD)
+          fi
           while IFS= read -r msg; do
             if [ -n "$msg" ] && ! echo "$msg" | grep -Eq "$PATTERN"; then
               echo "Non-conventional commit: $msg"
               FAILED=1
             fi
-          done < <(git log --format=%s HEAD)
-          if [ $FAILED -ne 0 ]; then
+          done <<< "$COMMITS"
+          if [ "$FAILED" -ne 0 ]; then
             exit 1
           fi
           echo "All commit messages conform to Conventional Commits standard"
@@ -58,7 +75,8 @@ jobs:
       - name: Run GolangCI-Lint
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-          $(go env GOPATH)/bin/golangci-lint run ./...
+          GOPATH=$(go env GOPATH)
+          "$GOPATH/bin/golangci-lint" run ./...
 
   test:
     runs-on: ${{ matrix.os }}
