@@ -40,6 +40,21 @@ func Go[T context.Context](steps ...Step[T]) Step[T] {
 	}
 }
 
+func Branch[T context.Context](condition func(ctx T) bool, ifBranch, elseBranch Step[T]) Step[T] {
+	return func(ctx T) error {
+		if condition != nil && condition(ctx) {
+			if ifBranch != nil {
+				return ifBranch(ctx)
+			}
+			return nil
+		}
+		if elseBranch != nil {
+			return elseBranch(ctx)
+		}
+		return nil
+	}
+}
+
 func (s Step[T]) Exec(ctx T) error {
 	if s == nil {
 		return nil
@@ -210,6 +225,10 @@ func (s Step[T]) Unless(predicate func(ctx T) bool) Step[T] {
 		}
 		return s(ctx)
 	}
+}
+
+func (s Step[T]) Branch(condition func(ctx T) bool, ifBranch, elseBranch Step[T]) Step[T] {
+	return s.Then(Branch(condition, ifBranch, elseBranch))
 }
 
 type Middleware[T context.Context] func(next Step[T]) Step[T]

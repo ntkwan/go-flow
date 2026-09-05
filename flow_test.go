@@ -637,3 +637,104 @@ func BenchmarkGo(b *testing.B) {
 		_ = step(ctx)
 	}
 }
+
+func TestBranchTrue(t *testing.T) {
+	ifRan := false
+	elseRan := false
+	step := Branch(
+		func(ctx context.Context) bool { return true },
+		func(ctx context.Context) error {
+			ifRan = true
+			return nil
+		},
+		func(ctx context.Context) error {
+			elseRan = true
+			return nil
+		},
+	)
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if !ifRan || elseRan {
+		t.Fatalf("expected only ifBranch to run, ifRan=%v elseRan=%v", ifRan, elseRan)
+	}
+}
+
+func TestBranchFalse(t *testing.T) {
+	ifRan := false
+	elseRan := false
+	step := Branch(
+		func(ctx context.Context) bool { return false },
+		func(ctx context.Context) error {
+			ifRan = true
+			return nil
+		},
+		func(ctx context.Context) error {
+			elseRan = true
+			return nil
+		},
+	)
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if ifRan || !elseRan {
+		t.Fatalf("expected only elseBranch to run, ifRan=%v elseRan=%v", ifRan, elseRan)
+	}
+}
+
+func TestBranchNilBranches(t *testing.T) {
+	stepTrue := Branch[context.Context](func(ctx context.Context) bool { return true }, nil, nil)
+	if err := stepTrue(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	stepFalse := Branch[context.Context](func(ctx context.Context) bool { return false }, nil, nil)
+	if err := stepFalse(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	stepNilCond := Branch[context.Context](nil, nil, nil)
+	if err := stepNilCond(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestStepBranch(t *testing.T) {
+	var trace []string
+	step := Step[context.Context](func(ctx context.Context) error {
+		trace = append(trace, "init")
+		return nil
+	}).Branch(
+		func(ctx context.Context) bool { return true },
+		func(ctx context.Context) error {
+			trace = append(trace, "branch_true")
+			return nil
+		},
+		func(ctx context.Context) error {
+			trace = append(trace, "branch_false")
+			return nil
+		},
+	)
+
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(trace) != 2 || trace[0] != "init" || trace[1] != "branch_true" {
+		t.Fatalf("unexpected trace: %v", trace)
+	}
+}
+
+func BenchmarkBranch(b *testing.B) {
+	step := Branch(
+		func(ctx context.Context) bool { return true },
+		func(ctx context.Context) error { return nil },
+		func(ctx context.Context) error { return nil },
+	)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = step(ctx)
+	}
+}

@@ -23,6 +23,13 @@ type compositionContext struct {
 	lastErr          error
 	partitionKeys    []string
 	collectedKeys    []string
+	branchStep       flow.Step[context.Context]
+	ifRan            bool
+	elseRan          bool
+	pipeStep         flow.Step[*bddPipeContext]
+	pipeOutput       string
+	streamItems      []int
+	streamResults    []int
 }
 
 func newCompositionContext() *compositionContext {
@@ -255,6 +262,167 @@ func (c *compositionContext) theFailoverExecutionSucceeds() error {
 	return c.theChainedExecutionSucceeds()
 }
 
+func (c *compositionContext) aConditionalBranchWithTrueCondition() error {
+	c.ifRan = false
+	c.elseRan = false
+	c.branchStep = flow.Branch(
+		func(ctx context.Context) bool { return true },
+		func(ctx context.Context) error {
+			c.ifRan = true
+			return nil
+		},
+		func(ctx context.Context) error {
+			c.elseRan = true
+			return nil
+		},
+	)
+	return nil
+}
+
+func (c *compositionContext) aConditionalBranchWithFalseCondition() error {
+	c.ifRan = false
+	c.elseRan = false
+	c.branchStep = flow.Branch(
+		func(ctx context.Context) bool { return false },
+		func(ctx context.Context) error {
+			c.ifRan = true
+			return nil
+		},
+		func(ctx context.Context) error {
+			c.elseRan = true
+			return nil
+		},
+	)
+	return nil
+}
+
+func (c *compositionContext) theConditionalBranchIsExecuted() error {
+	c.lastErr = c.branchStep(context.Background())
+	return nil
+}
+
+func (c *compositionContext) theIfBranchExecutes() error {
+	if !c.ifRan {
+		return errors.New("expected if-branch to execute")
+	}
+	return nil
+}
+
+func (c *compositionContext) theIfBranchIsNeverExecuted() error {
+	if c.ifRan {
+		return errors.New("expected if-branch to not execute")
+	}
+	return nil
+}
+
+func (c *compositionContext) theElseBranchExecutes() error {
+	if !c.elseRan {
+		return errors.New("expected else-branch to execute")
+	}
+	return nil
+}
+
+func (c *compositionContext) theElseBranchIsNeverExecuted() error {
+	if c.elseRan {
+		return errors.New("expected else-branch to not execute")
+	}
+	return nil
+}
+
+func (c *compositionContext) theBranchExecutionSucceeds() error {
+	return c.theChainedExecutionSucceeds()
+}
+
+type bddPipeContext struct {
+	context.Context
+	Input  int
+	Output string
+}
+
+func (c *compositionContext) aTypedPipeStepThatMultipliesInputBy2() error {
+	c.pipeStep = flow.Pipe(
+		func(ctx *bddPipeContext, in int) (string, error) {
+			return fmt.Sprintf("%d", in*2), nil
+		},
+		func(ctx *bddPipeContext) int {
+			return ctx.Input
+		},
+		func(ctx *bddPipeContext, out string) {
+			ctx.Output = out
+		},
+	)
+	return nil
+}
+
+func (c *compositionContext) thePipeStepIsExecutedWithInput(input int) error {
+	pCtx := &bddPipeContext{
+		Context: context.Background(),
+		Input:   input,
+	}
+	c.lastErr = c.pipeStep(pCtx)
+	c.pipeOutput = pCtx.Output
+	return nil
+}
+
+func (c *compositionContext) theOutputInContextIs(expected string) error {
+	if c.pipeOutput != expected {
+		return fmt.Errorf("expected output %q, got %q", expected, c.pipeOutput)
+	}
+	return nil
+}
+
+func (c *compositionContext) thePipeExecutionSucceeds() error {
+	return c.theChainedExecutionSucceeds()
+}
+
+func (c *compositionContext) aStreamOfIntegersFrom1To(count int) error {
+	c.streamItems = nil
+	for i := 1; i <= count; i++ {
+		c.streamItems = append(c.streamItems, i)
+	}
+	return nil
+}
+
+func (c *compositionContext) theStreamIsPipedThroughDoubleTransform() error {
+	c.streamResults = nil
+	seq := func(yield func(int) bool) {
+		for _, v := range c.streamItems {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+	step := flow.PipeSeq(
+		seq,
+		func(ctx context.Context, item int) (int, error) {
+			return item * 2, nil
+		},
+		func(ctx context.Context, item int) error {
+			c.streamResults = append(c.streamResults, item)
+			return nil
+		},
+	)
+	c.lastErr = step(context.Background())
+	return nil
+}
+
+func (c *compositionContext) transformedItemsAreCollectedInOrder(count int) error {
+	if len(c.streamResults) != count {
+		return fmt.Errorf("expected %d items, got %d", count, len(c.streamResults))
+	}
+	for i, v := range c.streamResults {
+		expected := c.streamItems[i] * 2
+		if v != expected {
+			return fmt.Errorf("at index %d: expected %d, got %d", i, expected, v)
+		}
+	}
+	return nil
+}
+
+func (c *compositionContext) thePipeStreamExecutionSucceeds() error {
+	return c.theChainedExecutionSucceeds()
+}
+
 func registerCompositionSteps(ctx *godog.ScenarioContext) {
 	c := newCompositionContext()
 
@@ -286,4 +454,23 @@ func registerCompositionSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the fallback step executes$`, c.theFallbackStepExecutes)
 	ctx.Step(`^the fallback step is never executed$`, c.theFallbackStepIsNeverExecuted)
 	ctx.Step(`^the failover execution succeeds$`, c.theFailoverExecutionSucceeds)
+
+	ctx.Step(`^a conditional branch with true condition$`, c.aConditionalBranchWithTrueCondition)
+	ctx.Step(`^a conditional branch with false condition$`, c.aConditionalBranchWithFalseCondition)
+	ctx.Step(`^the conditional branch is executed$`, c.theConditionalBranchIsExecuted)
+	ctx.Step(`^the if-branch executes$`, c.theIfBranchExecutes)
+	ctx.Step(`^the if-branch is never executed$`, c.theIfBranchIsNeverExecuted)
+	ctx.Step(`^the else-branch executes$`, c.theElseBranchExecutes)
+	ctx.Step(`^the else-branch is never executed$`, c.theElseBranchIsNeverExecuted)
+	ctx.Step(`^the branch execution succeeds$`, c.theBranchExecutionSucceeds)
+
+	ctx.Step(`^a typed pipe step that multiplies input by 2$`, c.aTypedPipeStepThatMultipliesInputBy2)
+	ctx.Step(`^the pipe step is executed with input (\d+)$`, c.thePipeStepIsExecutedWithInput)
+	ctx.Step(`^the output in context is "([^"]*)"$`, c.theOutputInContextIs)
+	ctx.Step(`^the pipe execution succeeds$`, c.thePipeExecutionSucceeds)
+
+	ctx.Step(`^a stream of (\d+) integers from 1 to (\d+)$`, c.aStreamOfIntegersFrom1To)
+	ctx.Step(`^the stream is piped through double transform$`, c.theStreamIsPipedThroughDoubleTransform)
+	ctx.Step(`^(\d+) transformed items are collected in order$`, c.transformedItemsAreCollectedInOrder)
+	ctx.Step(`^the pipe stream execution succeeds$`, c.thePipeStreamExecutionSucceeds)
 }

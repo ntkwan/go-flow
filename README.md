@@ -12,8 +12,10 @@ A high-performance, minimalist Go workflow and step execution engine designed fo
 ## Features
 
 - **Generic Step Abstraction**: `Step[T context.Context]` operates natively on standard contexts and custom context types.
-- **Fluent Receiver Methods**: Chain, compose, and harden steps with `.Then()`, `.Go()`, `.GoN()`, `.Race()`, `.Once()`, `.Timeout()`, `.Retry()`, `.Fallback()`, `.Catch()`, `.Recover()`, `.When()`, `.Unless()`.
+- **Fluent Receiver Methods**: Chain, compose, and harden steps with `.Then()`, `.Go()`, `.GoN()`, `.Race()`, `.Once()`, `.Timeout()`, `.Retry()`, `.Fallback()`, `.Catch()`, `.Recover()`, `.When()`, `.Unless()`, `.Branch()`.
 - **Sequential Execution (`Seq`)**: Executes steps in strict order, aborting immediately on the first error.
+- **Conditional Branching (`Branch`)**: Clean `if/else` execution paths evaluated dynamically at runtime.
+- **Typed Functional Piping (`Pipe`, `PipeSeq`, `Pipe2`, `Pipe3`)**: Type-safe functional value transformations and iterator streaming.
 - **Unbounded Concurrency (`Go`)**: Executes steps concurrently across goroutines, joining all errors.
 - **Bounded Concurrency (`GoN`)**: Throttles concurrent step execution with an exact worker pool / concurrency limit.
 - **Speculative Racing (`Race`)**: Races steps concurrently, returning immediately on first success while canceling losing branches.
@@ -283,6 +285,54 @@ orderCtx := &OrderContext{
 if err := orderPipeline(orderCtx); err != nil {
 	log.Fatal(err)
 }
+```
+
+### 10. Conditional Branching (`Branch`)
+
+Execute different branches dynamically based on context or state:
+
+```go
+// Standalone Branch combinator
+evalRisk := flow.Branch(
+	func(ctx *OrderContext) bool { return ctx.Total > 100000 },
+	manualReviewStep, // Executed when true
+	autoApproveStep,  // Executed when false
+)
+
+// Or chained with fluent .Branch()
+pipeline := validateOrder.
+	Branch(
+		func(ctx *OrderContext) bool { return ctx.IsVIP },
+		applyDiscountStep,
+		standardPricingStep,
+	).
+	Then(chargePayment)
+```
+
+### 11. Typed Functional Piping & Streaming (`Pipe`, `PipeSeq`)
+
+Bridge pure functions and typed value transformations cleanly into workflows and stream processing:
+
+```go
+// Transform typed values and write output back into context
+calculateTax := flow.Pipe(
+	func(ctx *OrderContext, subtotal int64) (int64, error) {
+		return int64(float64(subtotal) * 0.08), nil
+	},
+	func(ctx *OrderContext) int64 { return ctx.Subtotal },
+	func(ctx *OrderContext, tax int64) { ctx.Tax = tax },
+)
+
+// Stream standard Go iterators through a transform step into a sink
+streamPipeline := flow.PipeSeq(
+	slices.Values([]int{1, 2, 3, 4, 5}),
+	func(ctx context.Context, item int) (string, error) {
+		return fmt.Sprintf("item-%d", item*2), nil
+	},
+	func(ctx context.Context, item string) error {
+		return saveItem(ctx, item)
+	},
+)
 ```
 
 ## License
