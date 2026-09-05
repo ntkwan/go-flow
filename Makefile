@@ -1,6 +1,6 @@
-.PHONY: all test test-race cover fmt lint lint-actions check bench clean
+.PHONY: all test test-race cover bdd uat fmt lint lint-actions check bench clean
 
-all: check lint lint-actions test-race
+all: check lint lint-actions test-race bdd
 
 test:
 	go test -v ./...
@@ -11,6 +11,12 @@ test-race:
 cover:
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -func=coverage.out
+
+bdd:
+	cd test/bdd && go test -v ./...
+
+uat: bdd
+
 
 fmt:
 	gofmt -w -s .
@@ -39,3 +45,4 @@ bench:
 
 clean:
 	rm -f coverage.out
+

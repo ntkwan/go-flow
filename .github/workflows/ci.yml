@@ -103,6 +103,12 @@ jobs:
         if: runner.os == 'Windows'
         run: go test -v ./...
 
+      - name: Run UAT Acceptance Tests (BDD)
+        shell: bash
+        run: |
+          cd test/bdd
+          go test -v ./...
+
       - name: Enforce 100% Coverage Threshold
         shell: bash
         run: |
@@ -114,4 +120,5 @@ jobs:
             exit 1
           fi
           echo "Coverage check passed (100.0%)"
+
 
