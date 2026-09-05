@@ -1,3 +1,4 @@
+// Package flow provides structured concurrency and workflow pipelines for flow.
 package flow
 
 import (
@@ -9,8 +10,10 @@ import (
 	"time"
 )
 
+// Step represents Step.
 type Step[T context.Context] func(ctx T) error
 
+// Seq performs the Seq operation.
 func Seq[T context.Context](steps ...Step[T]) Step[T] {
 	return func(ctx T) error {
 		for _, step := range steps {
@@ -22,6 +25,7 @@ func Seq[T context.Context](steps ...Step[T]) Step[T] {
 	}
 }
 
+// Go performs the Go operation.
 func Go[T context.Context](steps ...Step[T]) Step[T] {
 	return func(ctx T) error {
 		if len(steps) == 0 {
@@ -50,6 +54,7 @@ func Go[T context.Context](steps ...Step[T]) Step[T] {
 	}
 }
 
+// Branch performs the Branch operation.
 func Branch[T context.Context](condition func(ctx T) bool, ifBranch, elseBranch Step[T]) Step[T] {
 	return func(ctx T) error {
 		if condition != nil && condition(ctx) {
@@ -65,6 +70,7 @@ func Branch[T context.Context](condition func(ctx T) bool, ifBranch, elseBranch 
 	}
 }
 
+// Dynamic performs the Dynamic operation.
 func Dynamic[T context.Context](fn func(ctx T) Step[T]) Step[T] {
 	return func(ctx T) error {
 		if fn == nil {
@@ -78,6 +84,7 @@ func Dynamic[T context.Context](fn func(ctx T) Step[T]) Step[T] {
 	}
 }
 
+// Exec executes the Exec operation.
 func (s Step[T]) Exec(ctx T) error {
 	if s == nil {
 		return nil
@@ -85,6 +92,7 @@ func (s Step[T]) Exec(ctx T) error {
 	return s(ctx)
 }
 
+// Then executes the Then operation.
 func (s Step[T]) Then(steps ...Step[T]) Step[T] {
 	all := make([]Step[T], 0, 1+len(steps))
 	if s != nil {
@@ -94,6 +102,7 @@ func (s Step[T]) Then(steps ...Step[T]) Step[T] {
 	return Seq(all...)
 }
 
+// Go executes the Go operation.
 func (s Step[T]) Go(steps ...Step[T]) Step[T] {
 	all := make([]Step[T], 0, 1+len(steps))
 	if s != nil {
@@ -103,6 +112,7 @@ func (s Step[T]) Go(steps ...Step[T]) Step[T] {
 	return Go(all...)
 }
 
+// GoN executes the GoN operation.
 func (s Step[T]) GoN(limit int, steps ...Step[T]) Step[T] {
 	all := make([]Step[T], 0, 1+len(steps))
 	if s != nil {
@@ -112,6 +122,7 @@ func (s Step[T]) GoN(limit int, steps ...Step[T]) Step[T] {
 	return GoN(limit, all...)
 }
 
+// Race executes the Race operation.
 func (s Step[T]) Race(steps ...Step[T]) Step[T] {
 	all := make([]Step[T], 0, 1+len(steps))
 	if s != nil {
@@ -121,10 +132,12 @@ func (s Step[T]) Race(steps ...Step[T]) Step[T] {
 	return Race(all...)
 }
 
+// Once executes the Once operation.
 func (s Step[T]) Once() Step[T] {
 	return Once(s)
 }
 
+// Timeout executes the Timeout operation.
 func (s Step[T]) Timeout(d time.Duration) Step[T] {
 	return func(ctx T) error {
 		if s == nil {
@@ -152,6 +165,7 @@ func (s Step[T]) Timeout(d time.Duration) Step[T] {
 	}
 }
 
+// Retry executes the Retry operation.
 func (s Step[T]) Retry(attempts int, delay time.Duration) Step[T] {
 	return func(ctx T) error {
 		if s == nil {
@@ -183,6 +197,7 @@ func (s Step[T]) Retry(attempts int, delay time.Duration) Step[T] {
 	}
 }
 
+// Fallback executes the Fallback operation.
 func (s Step[T]) Fallback(fallback Step[T]) Step[T] {
 	return func(ctx T) error {
 		if s == nil {
@@ -201,6 +216,7 @@ func (s Step[T]) Fallback(fallback Step[T]) Step[T] {
 	}
 }
 
+// Catch executes the Catch operation.
 func (s Step[T]) Catch(handler func(ctx T, err error) error) Step[T] {
 	return func(ctx T) error {
 		if s == nil {
@@ -216,6 +232,7 @@ func (s Step[T]) Catch(handler func(ctx T, err error) error) Step[T] {
 	}
 }
 
+// Recover executes the Recover operation.
 func (s Step[T]) Recover() Step[T] {
 	return func(ctx T) (err error) {
 		if s == nil {
@@ -234,6 +251,7 @@ func (s Step[T]) Recover() Step[T] {
 	}
 }
 
+// When executes the When operation.
 func (s Step[T]) When(predicate func(ctx T) bool) Step[T] {
 	return func(ctx T) error {
 		if s == nil || (predicate != nil && !predicate(ctx)) {
@@ -243,6 +261,7 @@ func (s Step[T]) When(predicate func(ctx T) bool) Step[T] {
 	}
 }
 
+// Unless executes the Unless operation.
 func (s Step[T]) Unless(predicate func(ctx T) bool) Step[T] {
 	return func(ctx T) error {
 		if s == nil || (predicate != nil && predicate(ctx)) {
@@ -252,16 +271,20 @@ func (s Step[T]) Unless(predicate func(ctx T) bool) Step[T] {
 	}
 }
 
+// Branch executes the Branch operation.
 func (s Step[T]) Branch(condition func(ctx T) bool, ifBranch, elseBranch Step[T]) Step[T] {
 	return s.Then(Branch(condition, ifBranch, elseBranch))
 }
 
+// Dynamic executes the Dynamic operation.
 func (s Step[T]) Dynamic(fn func(ctx T) Step[T]) Step[T] {
 	return s.Then(Dynamic(fn))
 }
 
+// Middleware represents Middleware.
 type Middleware[T context.Context] func(next Step[T]) Step[T]
 
+// Wrap executes the Wrap operation.
 func (s Step[T]) Wrap(middlewares ...Middleware[T]) Step[T] {
 	if s == nil {
 		return func(ctx T) error { return nil }

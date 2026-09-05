@@ -1,3 +1,4 @@
+// Package flow provides structured concurrency and workflow pipelines for flow.
 package flow
 
 import (
@@ -5,6 +6,7 @@ import (
 	"iter"
 )
 
+// Pipe performs the Pipe operation.
 func Pipe[T context.Context, In, Out any](
 	fn func(ctx T, in In) (Out, error),
 	get func(ctx T) In,
@@ -29,6 +31,7 @@ func Pipe[T context.Context, In, Out any](
 	}
 }
 
+// PipeSeq performs the PipeSeq operation.
 func PipeSeq[T context.Context, In, Out any](
 	seq iter.Seq[In],
 	transform func(ctx T, item In) (Out, error),
@@ -51,6 +54,7 @@ func PipeSeq[T context.Context, In, Out any](
 	}
 }
 
+// PipeSeq2 performs the PipeSeq2 operation.
 func PipeSeq2[T context.Context, K, V, Out any](
 	seq iter.Seq2[K, V],
 	transform func(ctx T, key K, val V) (Out, error),
@@ -73,6 +77,7 @@ func PipeSeq2[T context.Context, K, V, Out any](
 	}
 }
 
+// Pipe2 performs the Pipe2 operation.
 func Pipe2[T context.Context, A, B, C any](
 	f1 func(ctx T, a A) (B, error),
 	f2 func(ctx T, b B) (C, error),
@@ -97,6 +102,7 @@ func Pipe2[T context.Context, A, B, C any](
 	}
 }
 
+// Pipe3 performs the Pipe3 operation.
 func Pipe3[T context.Context, A, B, C, D any](
 	f1 func(ctx T, a A) (B, error),
 	f2 func(ctx T, b B) (C, error),

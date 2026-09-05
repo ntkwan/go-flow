@@ -7,7 +7,25 @@ linters:
     - errcheck
     - ineffassign
     - unused
+    - revive
+    - godot
+  settings:
+    revive:
+      rules:
+        - name: exported
+    godot:
+      scope: declarations
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - revive
+    - text: "should have a package comment"
+      linters:
+        - revive
 
 run:
   timeout: 5m
   tests: true
+

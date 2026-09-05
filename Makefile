@@ -1,6 +1,12 @@
-.PHONY: all test test-race stress leak cover bdd uat fmt lint lint-actions vuln check bench bench-compare fuzz mutation clean gen
+.PHONY: all test test-race stress leak cover bdd uat fmt lint lint-actions vuln check bench bench-compare fuzz mutation clean gen godoc-check godoc-scaffold
 
 all: check lint lint-actions vuln test-race leak bdd
+
+godoc-check:
+	go run ./cmd/godoc-scaffold -check
+
+godoc-scaffold:
+	go run ./cmd/godoc-scaffold -w
 
 gen:
 	cd cmd/gen-diagrams && go run .
@@ -43,9 +49,10 @@ fmt:
 
 lint:
 	golangci-lint run ./...
-	cd examples && golangci-lint run ./...
-	cd cmd/gen-diagrams && golangci-lint run ./...
-	cd test && golangci-lint run ./...
+	cd examples && golangci-lint run -c ../.golangci.yml ./...
+	cd cmd/gen-diagrams && golangci-lint run -c ../../.golangci.yml ./...
+	cd cmd/godoc-scaffold && golangci-lint run -c ../../.golangci.yml ./...
+	cd test && golangci-lint run -c ../.golangci.yml ./...
 
 lint-actions:
 	@if command -v actionlint >/dev/null 2>&1; then \

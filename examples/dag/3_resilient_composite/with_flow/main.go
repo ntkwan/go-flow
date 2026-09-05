@@ -8,6 +8,7 @@ import (
 	"github.com/ntkwan/go-flow"
 )
 
+// OrderContext represents OrderContext.
 type OrderContext struct {
 	context.Context
 	UserID     string

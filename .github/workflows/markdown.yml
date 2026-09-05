@@ -47,3 +47,4 @@ jobs:
         uses: crate-ci/typos@master
         with:
           files: 'README.md CHANGELOG.md'
+          config: _typos.toml

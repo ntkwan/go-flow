@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// OrderContext represents OrderContext.
 type OrderContext struct {
 	context.Context
 	OrderID     string

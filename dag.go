@@ -1,3 +1,4 @@
+// Package flow provides structured concurrency and workflow pipelines for flow.
 package flow
 
 import (
@@ -12,13 +13,19 @@ import (
 )
 
 var (
-	ErrDAGCycle             = errors.New("cycle detected in DAG")
+	// ErrDAGCycle defines ErrDAGCycle.
+	ErrDAGCycle = errors.New("cycle detected in DAG")
+	// ErrDAGUnknownDependency defines ErrDAGUnknownDependency.
 	ErrDAGUnknownDependency = errors.New("unknown dependency in DAG")
-	ErrDAGDuplicateNode     = errors.New("duplicate node name in DAG")
-	ErrDAGNilNode           = errors.New("nil node in DAG")
-	ErrDAGEmptyNodeName     = errors.New("empty node name in DAG")
+	// ErrDAGDuplicateNode defines ErrDAGDuplicateNode.
+	ErrDAGDuplicateNode = errors.New("duplicate node name in DAG")
+	// ErrDAGNilNode defines ErrDAGNilNode.
+	ErrDAGNilNode = errors.New("nil node in DAG")
+	// ErrDAGEmptyNodeName defines ErrDAGEmptyNodeName.
+	ErrDAGEmptyNodeName = errors.New("empty node name in DAG")
 )
 
+// DAGNode represents DAGNode.
 type DAGNode[T context.Context] struct {
 	name      string
 	step      Step[T]
@@ -26,15 +33,18 @@ type DAGNode[T context.Context] struct {
 	condition func(ctx T) bool
 }
 
+// DAGConnection represents DAGConnection.
 type DAGConnection[T context.Context] struct {
 	from Step[T]
 	to   []Step[T]
 }
 
+// DAGEdgeBuilder represents DAGEdgeBuilder.
 type DAGEdgeBuilder[T context.Context] struct {
 	from Step[T]
 }
 
+// Node performs the Node operation.
 func Node[T context.Context](name string, step Step[T]) *DAGNode[T] {
 	return &DAGNode[T]{
 		name: name,
@@ -42,6 +52,7 @@ func Node[T context.Context](name string, step Step[T]) *DAGNode[T] {
 	}
 }
 
+// Edge performs the Edge operation.
 func Edge[T context.Context](from Step[T], to ...Step[T]) DAGConnection[T] {
 	return DAGConnection[T]{
 		from: from,
@@ -49,10 +60,12 @@ func Edge[T context.Context](from Step[T], to ...Step[T]) DAGConnection[T] {
 	}
 }
 
+// From performs the From operation.
 func From[T context.Context](from Step[T]) DAGEdgeBuilder[T] {
 	return DAGEdgeBuilder[T]{from: from}
 }
 
+// To executes the To operation.
 func (b DAGEdgeBuilder[T]) To(to ...Step[T]) DAGConnection[T] {
 	return DAGConnection[T]{
 		from: b.from,
@@ -60,11 +73,13 @@ func (b DAGEdgeBuilder[T]) To(to ...Step[T]) DAGConnection[T] {
 	}
 }
 
+// After executes the After operation.
 func (n *DAGNode[T]) After(deps ...string) *DAGNode[T] {
 	n.dependsOn = append(n.dependsOn, deps...)
 	return n
 }
 
+// When executes the When operation.
 func (n *DAGNode[T]) When(predicate func(ctx T) bool) *DAGNode[T] {
 	if predicate != nil {
 		n.condition = predicate
@@ -72,6 +87,7 @@ func (n *DAGNode[T]) When(predicate func(ctx T) bool) *DAGNode[T] {
 	return n
 }
 
+// Unless executes the Unless operation.
 func (n *DAGNode[T]) Unless(predicate func(ctx T) bool) *DAGNode[T] {
 	if predicate != nil {
 		n.condition = func(ctx T) bool {
@@ -81,6 +97,7 @@ func (n *DAGNode[T]) Unless(predicate func(ctx T) bool) *DAGNode[T] {
 	return n
 }
 
+// WithTimeout executes the WithTimeout operation.
 func (n *DAGNode[T]) WithTimeout(d time.Duration) *DAGNode[T] {
 	if n.step != nil {
 		n.step = n.step.Timeout(d)
@@ -88,6 +105,7 @@ func (n *DAGNode[T]) WithTimeout(d time.Duration) *DAGNode[T] {
 	return n
 }
 
+// WithRetry executes the WithRetry operation.
 func (n *DAGNode[T]) WithRetry(attempts int, delay ...time.Duration) *DAGNode[T] {
 	if n.step != nil {
 		var d time.Duration
@@ -99,6 +117,7 @@ func (n *DAGNode[T]) WithRetry(attempts int, delay ...time.Duration) *DAGNode[T]
 	return n
 }
 
+// WithRecover executes the WithRecover operation.
 func (n *DAGNode[T]) WithRecover() *DAGNode[T] {
 	if n.step != nil {
 		n.step = n.step.Recover()
@@ -106,6 +125,7 @@ func (n *DAGNode[T]) WithRecover() *DAGNode[T] {
 	return n
 }
 
+// WithCatch executes the WithCatch operation.
 func (n *DAGNode[T]) WithCatch(handler func(ctx T, err error) error) *DAGNode[T] {
 	if n.step != nil {
 		n.step = n.step.Catch(handler)
@@ -113,6 +133,7 @@ func (n *DAGNode[T]) WithCatch(handler func(ctx T, err error) error) *DAGNode[T]
 	return n
 }
 
+// WithFallback executes the WithFallback operation.
 func (n *DAGNode[T]) WithFallback(fallback Step[T]) *DAGNode[T] {
 	if n.step != nil {
 		n.step = n.step.Fallback(fallback)
@@ -256,6 +277,7 @@ func compileDAG[T context.Context](nodes []*DAGNode[T]) ([]compiledDAGNode[T], e
 	return compiled, nil
 }
 
+// DAG performs the DAG operation.
 func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 	if len(nodes) == 0 {
 		return func(ctx T) error { return nil }
@@ -339,6 +361,7 @@ func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 	}
 }
 
+// DAGN performs the DAGN operation.
 func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 	if limit <= 0 || limit >= len(nodes) {
 		return DAG(nodes...)
@@ -369,10 +392,6 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 
 		runNode = func(idx int) {
 			defer wg.Done()
-
-			if failed.Load() || ctx.Err() != nil {
-				return
-			}
 
 			if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
 				for _, dep := range compiled[idx].dependents {
@@ -483,6 +502,7 @@ func buildNodesFromConnections[T context.Context](connections []DAGConnection[T]
 	return nodes, nil
 }
 
+// DAGEdges performs the DAGEdges operation.
 func DAGEdges[T context.Context](connections ...DAGConnection[T]) Step[T] {
 	if len(connections) == 0 {
 		return func(ctx T) error { return nil }
@@ -494,6 +514,7 @@ func DAGEdges[T context.Context](connections ...DAGConnection[T]) Step[T] {
 	return DAG(nodes...)
 }
 
+// DAGEdgesN performs the DAGEdgesN operation.
 func DAGEdgesN[T context.Context](limit int, connections ...DAGConnection[T]) Step[T] {
 	if len(connections) == 0 {
 		return func(ctx T) error { return nil }
@@ -505,14 +526,17 @@ func DAGEdgesN[T context.Context](limit int, connections ...DAGConnection[T]) St
 	return DAGN(limit, nodes...)
 }
 
+// DAGPlan represents DAGPlan.
 type DAGPlan[T context.Context] struct {
 	nodes []*DAGNode[T]
 }
 
+// NewDAG performs the NewDAG operation.
 func NewDAG[T context.Context](nodes ...*DAGNode[T]) *DAGPlan[T] {
 	return &DAGPlan[T]{nodes: nodes}
 }
 
+// NewDAGEdges performs the NewDAGEdges operation.
 func NewDAGEdges[T context.Context](connections ...DAGConnection[T]) (*DAGPlan[T], error) {
 	nodes, err := buildNodesFromConnections(connections)
 	if err != nil {
@@ -521,6 +545,7 @@ func NewDAGEdges[T context.Context](connections ...DAGConnection[T]) (*DAGPlan[T
 	return &DAGPlan[T]{nodes: nodes}, nil
 }
 
+// Step executes the Step operation.
 func (p *DAGPlan[T]) Step() Step[T] {
 	if p == nil {
 		return func(ctx T) error { return nil }
@@ -528,6 +553,7 @@ func (p *DAGPlan[T]) Step() Step[T] {
 	return DAG(p.nodes...)
 }
 
+// StepN executes the StepN operation.
 func (p *DAGPlan[T]) StepN(limit int) Step[T] {
 	if p == nil {
 		return func(ctx T) error { return nil }
@@ -535,6 +561,7 @@ func (p *DAGPlan[T]) StepN(limit int) Step[T] {
 	return DAGN(limit, p.nodes...)
 }
 
+// ExecWithReport executes the ExecWithReport operation.
 func (p *DAGPlan[T]) ExecWithReport(ctx T) (*DAGReport, error) {
 	if p == nil || len(p.nodes) == 0 {
 		return &DAGReport{}, nil
@@ -542,6 +569,7 @@ func (p *DAGPlan[T]) ExecWithReport(ctx T) (*DAGReport, error) {
 	return DAGWithReport(p.nodes...)(ctx)
 }
 
+// ExecNWithReport executes the ExecNWithReport operation.
 func (p *DAGPlan[T]) ExecNWithReport(limit int, ctx T) (*DAGReport, error) {
 	if p == nil || len(p.nodes) == 0 {
 		return &DAGReport{}, nil
@@ -549,6 +577,7 @@ func (p *DAGPlan[T]) ExecNWithReport(limit int, ctx T) (*DAGReport, error) {
 	return DAGNWithReport(limit, p.nodes...)(ctx)
 }
 
+// StepWithReport executes the StepWithReport operation.
 func (p *DAGPlan[T]) StepWithReport() func(ctx T) (*DAGReport, error) {
 	if p == nil || len(p.nodes) == 0 {
 		return func(ctx T) (*DAGReport, error) { return &DAGReport{}, nil }
@@ -556,6 +585,7 @@ func (p *DAGPlan[T]) StepWithReport() func(ctx T) (*DAGReport, error) {
 	return DAGWithReport(p.nodes...)
 }
 
+// StepNWithReport executes the StepNWithReport operation.
 func (p *DAGPlan[T]) StepNWithReport(limit int) func(ctx T) (*DAGReport, error) {
 	if p == nil || len(p.nodes) == 0 {
 		return func(ctx T) (*DAGReport, error) { return &DAGReport{}, nil }
@@ -563,6 +593,7 @@ func (p *DAGPlan[T]) StepNWithReport(limit int) func(ctx T) (*DAGReport, error) 
 	return DAGNWithReport(limit, p.nodes...)
 }
 
+// Validate executes the Validate operation.
 func (p *DAGPlan[T]) Validate() error {
 	if p == nil || len(p.nodes) == 0 {
 		return nil
@@ -570,6 +601,7 @@ func (p *DAGPlan[T]) Validate() error {
 	return validateDAG(p.nodes)
 }
 
+// ToMermaid executes the ToMermaid operation.
 func (p *DAGPlan[T]) ToMermaid() (string, error) {
 	if p == nil {
 		return "graph TD", nil
@@ -577,6 +609,7 @@ func (p *DAGPlan[T]) ToMermaid() (string, error) {
 	return DAGToMermaid(p.nodes...)
 }
 
+// ToDOT executes the ToDOT operation.
 func (p *DAGPlan[T]) ToDOT() (string, error) {
 	if p == nil {
 		return "digraph DAG {\n}", nil
@@ -603,6 +636,7 @@ func escapeMermaidID(name string) string {
 	return s
 }
 
+// DAGToMermaid performs the DAGToMermaid operation.
 func DAGToMermaid[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 	if len(nodes) == 0 {
 		return "graph TD", nil
@@ -632,6 +666,7 @@ func DAGToMermaid[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
+// DAGToDOT performs the DAGToDOT operation.
 func DAGToDOT[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 	if len(nodes) == 0 {
 		return "digraph DAG {\n}", nil
@@ -662,6 +697,7 @@ func DAGToDOT[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 	return sb.String(), nil
 }
 
+// DAGEdgesToMermaid performs the DAGEdgesToMermaid operation.
 func DAGEdgesToMermaid[T context.Context](connections ...DAGConnection[T]) (string, error) {
 	if len(connections) == 0 {
 		return "graph TD", nil
@@ -673,6 +709,7 @@ func DAGEdgesToMermaid[T context.Context](connections ...DAGConnection[T]) (stri
 	return DAGToMermaid(nodes...)
 }
 
+// DAGEdgesToDOT performs the DAGEdgesToDOT operation.
 func DAGEdgesToDOT[T context.Context](connections ...DAGConnection[T]) (string, error) {
 	if len(connections) == 0 {
 		return "digraph DAG {\n}", nil

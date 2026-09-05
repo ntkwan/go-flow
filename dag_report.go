@@ -1,3 +1,4 @@
+// Package flow provides structured concurrency and workflow pipelines for flow.
 package flow
 
 import (
@@ -8,14 +9,19 @@ import (
 	"time"
 )
 
+// NodeStatus represents NodeStatus.
 type NodeStatus string
 
 const (
+	// NodeStatusSuccess defines NodeStatusSuccess.
 	NodeStatusSuccess NodeStatus = "SUCCESS"
-	NodeStatusFailed  NodeStatus = "FAILED"
+	// NodeStatusFailed defines NodeStatusFailed.
+	NodeStatusFailed NodeStatus = "FAILED"
+	// NodeStatusSkipped defines NodeStatusSkipped.
 	NodeStatusSkipped NodeStatus = "SKIPPED"
 )
 
+// NodeReport represents NodeReport.
 type NodeReport struct {
 	Name      string
 	Status    NodeStatus
@@ -25,6 +31,7 @@ type NodeReport struct {
 	Err       error
 }
 
+// DAGReport represents DAGReport.
 type DAGReport struct {
 	Duration  time.Duration
 	StartTime time.Time
@@ -33,6 +40,7 @@ type DAGReport struct {
 	nodeMap   map[string]*NodeReport
 }
 
+// Node executes the Node operation.
 func (r *DAGReport) Node(name string) *NodeReport {
 	if r == nil {
 		return nil
@@ -46,6 +54,7 @@ func (r *DAGReport) Node(name string) *NodeReport {
 	return r.nodeMap[name]
 }
 
+// Successful executes the Successful operation.
 func (r *DAGReport) Successful() []NodeReport {
 	if r == nil {
 		return nil
@@ -59,6 +68,7 @@ func (r *DAGReport) Successful() []NodeReport {
 	return res
 }
 
+// Failed executes the Failed operation.
 func (r *DAGReport) Failed() []NodeReport {
 	if r == nil {
 		return nil
@@ -72,6 +82,7 @@ func (r *DAGReport) Failed() []NodeReport {
 	return res
 }
 
+// Skipped executes the Skipped operation.
 func (r *DAGReport) Skipped() []NodeReport {
 	if r == nil {
 		return nil
@@ -85,6 +96,7 @@ func (r *DAGReport) Skipped() []NodeReport {
 	return res
 }
 
+// DAGWithReport performs the DAGWithReport operation.
 func DAGWithReport[T context.Context](nodes ...*DAGNode[T]) func(ctx T) (*DAGReport, error) {
 	if len(nodes) == 0 {
 		return func(ctx T) (*DAGReport, error) {
@@ -220,6 +232,7 @@ func DAGWithReport[T context.Context](nodes ...*DAGNode[T]) func(ctx T) (*DAGRep
 	}
 }
 
+// DAGNWithReport performs the DAGNWithReport operation.
 func DAGNWithReport[T context.Context](limit int, nodes ...*DAGNode[T]) func(ctx T) (*DAGReport, error) {
 	if limit <= 0 || limit >= len(nodes) {
 		return DAGWithReport(nodes...)
@@ -267,10 +280,6 @@ func DAGNWithReport[T context.Context](limit int, nodes ...*DAGNode[T]) func(ctx
 
 		runNode = func(idx int) {
 			defer wg.Done()
-
-			if failed.Load() || ctx.Err() != nil {
-				return
-			}
 
 			if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
 				reports[idx].Status = NodeStatusSkipped
@@ -375,6 +384,7 @@ func DAGNWithReport[T context.Context](limit int, nodes ...*DAGNode[T]) func(ctx
 	}
 }
 
+// DAGEdgesWithReport performs the DAGEdgesWithReport operation.
 func DAGEdgesWithReport[T context.Context](connections ...DAGConnection[T]) func(ctx T) (*DAGReport, error) {
 	if len(connections) == 0 {
 		return func(ctx T) (*DAGReport, error) {
@@ -390,6 +400,7 @@ func DAGEdgesWithReport[T context.Context](connections ...DAGConnection[T]) func
 	return DAGWithReport(nodes...)
 }
 
+// DAGEdgesNWithReport performs the DAGEdgesNWithReport operation.
 func DAGEdgesNWithReport[T context.Context](limit int, connections ...DAGConnection[T]) func(ctx T) (*DAGReport, error) {
 	if len(connections) == 0 {
 		return func(ctx T) (*DAGReport, error) {

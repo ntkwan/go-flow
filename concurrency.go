@@ -1,3 +1,4 @@
+// Package flow provides structured concurrency and workflow pipelines for flow.
 package flow
 
 import (
@@ -8,6 +9,7 @@ import (
 	"sync/atomic"
 )
 
+// GoN performs the GoN operation.
 func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 	if len(steps) == 0 {
 		return func(ctx T) error { return nil }
@@ -50,6 +52,7 @@ func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 	}
 }
 
+// Race performs the Race operation.
 func Race[T context.Context](steps ...Step[T]) Step[T] {
 	return func(ctx T) error {
 		if len(steps) == 0 {
@@ -88,6 +91,7 @@ func Race[T context.Context](steps ...Step[T]) Step[T] {
 	}
 }
 
+// Each performs the Each operation.
 func Each[T context.Context, V any](seq iter.Seq[V], step func(ctx T, item V) error) Step[T] {
 	return func(ctx T) error {
 		if seq == nil || step == nil {
@@ -102,6 +106,7 @@ func Each[T context.Context, V any](seq iter.Seq[V], step func(ctx T, item V) er
 	}
 }
 
+// Each2 performs the Each2 operation.
 func Each2[T context.Context, K, V any](seq iter.Seq2[K, V], step func(ctx T, key K, val V) error) Step[T] {
 	return func(ctx T) error {
 		if seq == nil || step == nil {
@@ -116,6 +121,7 @@ func Each2[T context.Context, K, V any](seq iter.Seq2[K, V], step func(ctx T, ke
 	}
 }
 
+// Once performs the Once operation.
 func Once[T context.Context](step Step[T]) Step[T] {
 	if step == nil {
 		return func(ctx T) error { return nil }
@@ -132,6 +138,7 @@ func Once[T context.Context](step Step[T]) Step[T] {
 	}
 }
 
+// Chunk performs the Chunk operation.
 func Chunk[T context.Context, V any](seq iter.Seq[V], size int, step func(ctx T, batch []V) error) Step[T] {
 	return func(ctx T) error {
 		if seq == nil || step == nil {
@@ -159,6 +166,7 @@ func Chunk[T context.Context, V any](seq iter.Seq[V], size int, step func(ctx T,
 	}
 }
 
+// Chunk2 performs the Chunk2 operation.
 func Chunk2[T context.Context, K, V any](seq iter.Seq2[K, V], size int, step func(ctx T, keys []K, vals []V) error) Step[T] {
 	return func(ctx T) error {
 		if seq == nil || step == nil {
