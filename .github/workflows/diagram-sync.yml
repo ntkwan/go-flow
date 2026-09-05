@@ -1,0 +1,30 @@
+name: Sync Diagrams
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'examples/order_checkout/**'
+      - 'cmd/gen-diagrams/**'
+
+permissions:
+  contents: write
+
+jobs:
+  sync-diagrams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          check-latest: true
+
+      - name: Generate Documentation Diagrams
+        run: go run ./cmd/gen-diagrams
+
+      - name: Commit & Push Diagram Updates
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'docs: auto-sync mermaid diagram from order_checkout'
+          file_pattern: 'README.md'
