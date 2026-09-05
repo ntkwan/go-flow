@@ -23,100 +23,200 @@ type PipelineContext struct {
 
 func fetchUser(ctx *PipelineContext) error {
 	time.Sleep(10 * time.Millisecond)
-	fmt.Printf("[1] User profile fetched: %s (VIP: %v)\n", ctx.UserID, ctx.IsVIP)
+	fmt.Printf("fetchUser: user %s loaded (VIP: %v)\n", ctx.UserID, ctx.IsVIP)
 	return nil
 }
 
 func checkInventory(ctx *PipelineContext) error {
 	time.Sleep(10 * time.Millisecond)
 	ctx.InventoryOK = true
-	fmt.Println("[2] Warehouse inventory verified")
+	fmt.Println("checkInventory: stock verified and reserved")
 	return nil
 }
 
 func fetchPricing(ctx *PipelineContext) error {
 	time.Sleep(10 * time.Millisecond)
 	ctx.PricingOK = true
-	fmt.Println("[3] Dynamic pricing and tax calculated")
+	fmt.Println("fetchPricing: tax and rates calculated")
 	return nil
 }
 
 func applyVIPDiscount(ctx *PipelineContext) error {
-	fmt.Println("[4] VIP discount applied to order")
+	fmt.Println("applyVIPDiscount: VIP loyalty discount applied")
 	return nil
 }
 
 func enrichGeoData(ctx *PipelineContext) error {
-	fmt.Println("[5a] Geo-location data enriched")
+	fmt.Println("enrichGeoData: IP location resolved")
 	return nil
 }
 
 func enrichRiskScore(ctx *PipelineContext) error {
-	fmt.Println("[5b] Fraud risk score computed")
+	fmt.Println("enrichRiskScore: anti-fraud score computed")
 	return nil
 }
 
 func primaryPaymentGateway(ctx *PipelineContext) error {
 	time.Sleep(10 * time.Millisecond)
 	ctx.PaymentOK = true
-	fmt.Println("[6] Primary payment gateway processed charge")
+	fmt.Println("primaryPaymentGateway: credit card charge succeeded")
 	return nil
 }
 
 func backupPaymentGateway(ctx *PipelineContext) error {
 	ctx.PaymentOK = true
-	fmt.Println("[6-backup] Secondary payment gateway processed charge")
+	fmt.Println("backupPaymentGateway: secondary gateway charge succeeded")
 	return nil
 }
 
 func generateInvoice(ctx *PipelineContext) error {
 	ctx.InvoiceID = "INV-" + ctx.OrderID
-	fmt.Printf("[7] Invoice generated: %s\n", ctx.InvoiceID)
+	fmt.Printf("generateInvoice: generated %s\n", ctx.InvoiceID)
 	return nil
 }
 
 func dispatchWarehouse(ctx *PipelineContext) error {
 	ctx.Dispatched = true
-	fmt.Println("[8] Warehouse package dispatched")
+	fmt.Println("dispatchWarehouse: package queued for packing")
 	return nil
 }
 
 func notifyCustomer(ctx *PipelineContext) error {
 	ctx.Notification = true
-	fmt.Println("[9] Push notification and confirmation email sent")
+	fmt.Println("notifyCustomer: confirmation SMS dispatched")
 	return nil
 }
 
-func runAdvancedCompositeDAG(ctx *PipelineContext) {
-	fmt.Println("=== 1. Advanced Composite & Resilient DAG ===")
+func style1NamedNodes(ctx *PipelineContext) {
+	fmt.Println("=== Style 1: Named Nodes with flow.Node and .After() ===")
 
-	userNode := flow.Node("fetch-user", flow.Step[*PipelineContext](fetchUser).Retry(3, 10*time.Millisecond))
-	invNode := flow.Node("check-inventory", flow.Step[*PipelineContext](checkInventory).Timeout(1*time.Second))
-	pricingNode := flow.Node("fetch-pricing", fetchPricing)
+	userNode := flow.Node("user", fetchUser)
+	inventoryNode := flow.Node("inventory", checkInventory)
+	paymentNode := flow.Node("payment", primaryPaymentGateway).After("user", "inventory")
+	invoiceNode := flow.Node("invoice", generateInvoice).After("payment")
+
+	graph := flow.DAG(userNode, inventoryNode, paymentNode, invoiceNode)
+	if err := graph(ctx); err != nil {
+		panic(err)
+	}
+	fmt.Println("Style 1 completed.")
+	fmt.Println()
+}
+
+func style2FluentFunctionEdges(ctx *PipelineContext) {
+	fmt.Println("=== Style 2: Fluent Pure-Function Edges with flow.From.To ===")
+
+	graph := flow.DAGEdges(
+		flow.From(fetchUser).To(primaryPaymentGateway),
+		flow.From(checkInventory).To(primaryPaymentGateway),
+		flow.From(primaryPaymentGateway).To(generateInvoice),
+		flow.From(generateInvoice).To(notifyCustomer),
+	)
+
+	if err := graph(ctx); err != nil {
+		panic(err)
+	}
+	fmt.Println("Style 2 completed.")
+	fmt.Println()
+}
+
+func style3PairwiseEdges(ctx *PipelineContext) {
+	fmt.Println("=== Style 3: Pairwise Edges with flow.Edge ===")
+
+	graph := flow.DAGEdges(
+		flow.Edge(fetchUser, primaryPaymentGateway),
+		flow.Edge(checkInventory, primaryPaymentGateway),
+		flow.Edge(primaryPaymentGateway, generateInvoice),
+		flow.Edge(primaryPaymentGateway, dispatchWarehouse),
+	)
+
+	if err := graph(ctx); err != nil {
+		panic(err)
+	}
+	fmt.Println("Style 3 completed.")
+	fmt.Println()
+}
+
+func style4PreflightPlanValidation(ctx *PipelineContext) {
+	fmt.Println("=== Style 4: Pre-flight Plan Validation (NewDAG / Validate) ===")
+
+	n1 := flow.Node("user", fetchUser)
+	n2 := flow.Node("inventory", checkInventory)
+	n3 := flow.Node("payment", primaryPaymentGateway).After("user", "inventory")
+
+	plan := flow.NewDAG(n1, n2, n3)
+	if err := plan.Validate(); err != nil {
+		panic(err)
+	}
+
+	workflow := plan.Step()
+	if err := workflow(ctx); err != nil {
+		panic(err)
+	}
+	fmt.Println("Style 4 completed.")
+	fmt.Println()
+}
+
+func style5BoundedConcurrency(ctx *PipelineContext) {
+	fmt.Println("=== Style 5: Bounded Concurrency Worker Limits (DAGN / DAGEdgesN) ===")
+
+	n1 := flow.Node("user", fetchUser)
+	n2 := flow.Node("inventory", checkInventory)
+	n3 := flow.Node("pricing", fetchPricing)
+	n4 := flow.Node("payment", primaryPaymentGateway).After("user", "inventory", "pricing")
+
+	stepWithWorkerLimit := flow.DAGN(2, n1, n2, n3, n4)
+	if err := stepWithWorkerLimit(ctx); err != nil {
+		panic(err)
+	}
+
+	edgeStepWithLimit := flow.DAGEdgesN(2,
+		flow.From(fetchUser).To(primaryPaymentGateway),
+		flow.From(checkInventory).To(primaryPaymentGateway),
+		flow.From(fetchPricing).To(primaryPaymentGateway),
+	)
+	if err := edgeStepWithLimit(ctx); err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Style 5 completed.")
+	fmt.Println()
+}
+
+func style6CompositeResilientDAG(ctx *PipelineContext) {
+	fmt.Println("=== Style 6: Composite Resilient DAG (Decorators & Sub-Pipelines) ===")
+
+	userNode := flow.Node("user",
+		flow.Step[*PipelineContext](fetchUser).Retry(3, 10*time.Millisecond),
+	)
+	invNode := flow.Node("inventory",
+		flow.Step[*PipelineContext](checkInventory).Timeout(1*time.Second),
+	)
+	pricingNode := flow.Node("pricing", fetchPricing)
 
 	vipStep := flow.Step[*PipelineContext](applyVIPDiscount).When(func(c *PipelineContext) bool {
 		return c.IsVIP
 	})
-	vipNode := flow.Node("vip-discount", vipStep).After("fetch-user", "fetch-pricing")
+	vipNode := flow.Node("vip-discount", vipStep).After("user", "pricing")
 
 	enrichmentPipeline := flow.Seq(
 		flow.Step[*PipelineContext](enrichGeoData),
 		flow.Step[*PipelineContext](enrichRiskScore),
 	)
-	enrichNode := flow.Node("enrich-metadata", enrichmentPipeline).After("fetch-user")
+	enrichNode := flow.Node("enrichment", enrichmentPipeline).After("user")
 
 	resilientPayment := flow.Step[*PipelineContext](primaryPaymentGateway).
 		Fallback(backupPaymentGateway).
 		Retry(2, 20*time.Millisecond).
 		Timeout(2 * time.Second)
 
-	paymentNode := flow.Node("process-payment", resilientPayment).
-		After("check-inventory", "vip-discount", "enrich-metadata")
+	paymentNode := flow.Node("payment", resilientPayment).
+		After("inventory", "vip-discount", "enrichment")
 
-	invoiceNode := flow.Node("generate-invoice", generateInvoice).After("process-payment")
-	dispatchNode := flow.Node("dispatch-warehouse", dispatchWarehouse).After("process-payment")
-	notifyNode := flow.Node("notify-customer", flow.Step[*PipelineContext](notifyCustomer).Once()).
-		After("generate-invoice", "dispatch-warehouse")
+	invoiceNode := flow.Node("invoice", generateInvoice).After("payment")
+	dispatchNode := flow.Node("dispatch", dispatchWarehouse).After("payment")
+	notifyNode := flow.Node("notify", flow.Step[*PipelineContext](notifyCustomer).Once()).
+		After("invoice", "dispatch")
 
 	plan := flow.NewDAG(
 		userNode, invNode, pricingNode, vipNode, enrichNode,
@@ -131,62 +231,72 @@ func runAdvancedCompositeDAG(ctx *PipelineContext) {
 	if err := workflow(ctx); err != nil {
 		panic(err)
 	}
-	fmt.Println("Advanced DAG execution completed successfully.")
+	fmt.Println("Style 6 completed.")
 	fmt.Println()
 }
 
-func runFunctionalEdgeDAG(ctx *PipelineContext) {
-	fmt.Println("=== 2. Functional Edges (From.To) ===")
+func style7VisualDiagramExport() {
+	fmt.Println("=== Style 7: Visual Architecture Exports (Mermaid & DOT) ===")
 
-	graph := flow.DAGEdges(
-		flow.From(fetchUser).To(primaryPaymentGateway),
-		flow.From(checkInventory).To(primaryPaymentGateway),
-		flow.From(primaryPaymentGateway).To(generateInvoice),
-		flow.From(generateInvoice).To(notifyCustomer),
-	)
+	userNode := flow.Node("user", fetchUser)
+	invNode := flow.Node("inventory", checkInventory)
+	paymentNode := flow.Node("payment", primaryPaymentGateway).After("user", "inventory")
+	invoiceNode := flow.Node("invoice", generateInvoice).After("payment")
+	notifyNode := flow.Node("notify", notifyCustomer).After("invoice")
 
-	if err := graph(ctx); err != nil {
-		panic(err)
-	}
-	fmt.Println("Functional edges DAG execution completed successfully.")
-	fmt.Println()
-}
-
-func runGraphVisualizationAndInspection() {
-	fmt.Println("=== 3. Graph Validation & Architecture Export ===")
-
-	n1 := flow.Node("fetch-user", fetchUser)
-	n2 := flow.Node("check-inventory", checkInventory)
-	n3 := flow.Node("process-payment", primaryPaymentGateway).After("fetch-user", "check-inventory")
-	n4 := flow.Node("generate-invoice", generateInvoice).After("process-payment")
-	n5 := flow.Node("notify-customer", notifyCustomer).After("generate-invoice")
-
-	plan := flow.NewDAG(n1, n2, n3, n4, n5)
+	plan := flow.NewDAG(userNode, invNode, paymentNode, invoiceNode, notifyNode)
 
 	mermaid, err := plan.ToMermaid()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Generated Mermaid Diagram:")
+	fmt.Println("Mermaid Diagram Output:")
 	fmt.Println(mermaid)
 
 	dot, err := plan.ToDOT()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Generated DOT Graph:")
+	fmt.Println("Graphviz DOT Output:")
 	fmt.Println(dot)
+
+	edgeMermaid, err := flow.DAGEdgesToMermaid(
+		flow.From(fetchUser).To(primaryPaymentGateway),
+		flow.From(checkInventory).To(primaryPaymentGateway),
+		flow.From(primaryPaymentGateway).To(generateInvoice),
+	)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Pure Function Edges Mermaid Diagram:")
+	fmt.Println(edgeMermaid)
+
+	edgeDOT, err := flow.DAGEdgesToDOT(
+		flow.Edge(fetchUser, primaryPaymentGateway),
+		flow.Edge(checkInventory, primaryPaymentGateway),
+	)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Pure Function Edges DOT Graph:")
+	fmt.Println(edgeDOT)
+	fmt.Println("Style 7 completed.")
+	fmt.Println()
 }
 
 func main() {
 	ctx := &PipelineContext{
 		Context: context.Background(),
-		UserID:  "USR-9842",
-		OrderID: "ORD-5501",
+		UserID:  "USR-4091",
+		OrderID: "ORD-8820",
 		IsVIP:   true,
 	}
 
-	runAdvancedCompositeDAG(ctx)
-	runFunctionalEdgeDAG(ctx)
-	runGraphVisualizationAndInspection()
+	style1NamedNodes(ctx)
+	style2FluentFunctionEdges(ctx)
+	style3PairwiseEdges(ctx)
+	style4PreflightPlanValidation(ctx)
+	style5BoundedConcurrency(ctx)
+	style6CompositeResilientDAG(ctx)
+	style7VisualDiagramExport()
 }
