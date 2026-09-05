@@ -91,18 +91,27 @@ func main() {
 		panic(err)
 	}
 
-	readmePath := "README.md"
+	docFiles := []string{"README.md", "GETTING_STARTED.md"}
 	startTag := "<!-- AUTO-GENERATED-DAG:START -->"
 	endTag := "<!-- AUTO-GENERATED-DAG:END -->"
 
-	if err := syncMermaidDiagram(readmePath, startTag, endTag, mermaid, checkOnly); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	for _, docFile := range docFiles {
+		data, readErr := os.ReadFile(docFile)
+		if readErr != nil {
+			continue
+		}
+		if !strings.Contains(string(data), startTag) {
+			continue
+		}
+		if err := syncMermaidDiagram(docFile, startTag, endTag, mermaid, checkOnly); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	if checkOnly {
-		fmt.Println("Diagrams check passed: README.md is in sync")
+		fmt.Println("Diagrams check passed: documentation is in sync")
 	} else {
-		fmt.Println("Successfully generated and synced Mermaid diagram into README.md")
+		fmt.Println("Successfully generated and synced Mermaid diagram into documentation")
 	}
 }
