@@ -9,6 +9,14 @@ import (
 	"sync"
 )
 
+var (
+	ErrDAGCycle             = errors.New("cycle detected in DAG")
+	ErrDAGUnknownDependency = errors.New("unknown dependency in DAG")
+	ErrDAGDuplicateNode     = errors.New("duplicate node name in DAG")
+	ErrDAGNilNode           = errors.New("nil node in DAG")
+	ErrDAGEmptyNodeName     = errors.New("empty node name in DAG")
+)
+
 type DAGNode[T context.Context] struct {
 	name      string
 	step      Step[T]
@@ -60,17 +68,63 @@ type dagRuntimeNode[T context.Context] struct {
 	err  error
 }
 
+func findCyclePath[T context.Context](nodes []*DAGNode[T], graph map[string][]string, inDegree map[string]int) []string {
+	visited := make(map[string]int)
+	var path []string
+	var cycle []string
+
+	var dfs func(u string) bool
+	dfs = func(u string) bool {
+		visited[u] = 1
+		path = append(path, u)
+
+		for _, v := range graph[u] {
+			if inDegree[v] == 0 {
+				continue
+			}
+			if visited[v] == 1 {
+				idx := 0
+				for i, p := range path {
+					if p == v {
+						idx = i
+						break
+					}
+				}
+				cycle = append([]string{}, path[idx:]...)
+				cycle = append(cycle, v)
+				return true
+			}
+			if visited[v] == 0 {
+				if dfs(v) {
+					return true
+				}
+			}
+		}
+
+		path = path[:len(path)-1]
+		visited[u] = 2
+		return false
+	}
+
+	for _, n := range nodes {
+		if inDegree[n.name] > 0 && visited[n.name] == 0 && dfs(n.name) {
+			break
+		}
+	}
+	return cycle
+}
+
 func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 	nodeMap := make(map[string]*DAGNode[T], len(nodes))
 	for _, n := range nodes {
 		if n == nil {
-			return errors.New("nil node in DAG")
+			return ErrDAGNilNode
 		}
 		if n.name == "" {
-			return errors.New("empty node name in DAG")
+			return ErrDAGEmptyNodeName
 		}
 		if _, exists := nodeMap[n.name]; exists {
-			return fmt.Errorf("duplicate node name: %s", n.name)
+			return fmt.Errorf("%w: %s", ErrDAGDuplicateNode, n.name)
 		}
 		nodeMap[n.name] = n
 	}
@@ -82,10 +136,10 @@ func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 		inDegree[n.name] = len(n.dependsOn)
 		for _, dep := range n.dependsOn {
 			if dep == n.name {
-				return fmt.Errorf("node %s cannot depend on itself", n.name)
+				return fmt.Errorf("%w: node %s cannot depend on itself", ErrDAGCycle, n.name)
 			}
 			if _, exists := nodeMap[dep]; !exists {
-				return fmt.Errorf("unknown dependency %q for node %q", dep, n.name)
+				return fmt.Errorf("%w: unknown dependency %q for node %q", ErrDAGUnknownDependency, dep, n.name)
 			}
 			graph[dep] = append(graph[dep], n.name)
 		}
@@ -113,7 +167,8 @@ func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 	}
 
 	if visited != len(nodes) {
-		return errors.New("cycle detected in DAG")
+		cycle := findCyclePath(nodes, graph, inDegree)
+		return fmt.Errorf("%w: %s", ErrDAGCycle, strings.Join(cycle, " -> "))
 	}
 
 	return nil
@@ -347,6 +402,13 @@ func (p *DAGPlan[T]) StepN(limit int) Step[T] {
 		return func(ctx T) error { return nil }
 	}
 	return DAGN(limit, p.nodes...)
+}
+
+func (p *DAGPlan[T]) Validate() error {
+	if p == nil || len(p.nodes) == 0 {
+		return nil
+	}
+	return validateDAG(p.nodes)
 }
 
 func (p *DAGPlan[T]) ToMermaid() (string, error) {

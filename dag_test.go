@@ -143,6 +143,12 @@ func TestDAGCycleDirect(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected cycle error, got nil")
 	}
+	if !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "A -> B -> A") && !strings.Contains(err.Error(), "B -> A -> B") {
+		t.Fatalf("expected cycle path in error message, got %q", err.Error())
+	}
 }
 
 func TestDAGCycleSelf(t *testing.T) {
@@ -152,6 +158,12 @@ func TestDAGCycleSelf(t *testing.T) {
 	err := step(context.Background())
 	if err == nil {
 		t.Fatal("expected self-cycle error, got nil")
+	}
+	if !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "node A cannot depend on itself") {
+		t.Fatalf("expected self-dependency message, got %q", err.Error())
 	}
 }
 
@@ -165,6 +177,38 @@ func TestDAGCycleTransitive(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected transitive cycle error, got nil")
 	}
+	if !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "A -> B -> C -> A") && !strings.Contains(err.Error(), "B -> C -> A -> B") && !strings.Contains(err.Error(), "C -> A -> B -> C") {
+		t.Fatalf("expected transitive cycle path in error, got %q", err.Error())
+	}
+}
+
+func TestDAGCycleComplexBacktracking(t *testing.T) {
+	nEntry := Node("entry", func(ctx context.Context) error { return nil }).After("cA")
+	nDeadEnd := Node("dead", func(ctx context.Context) error { return nil }).After("entry")
+	nCA := Node("cA", func(ctx context.Context) error { return nil }).After("cB")
+	nCB := Node("cB", func(ctx context.Context) error { return nil }).After("entry")
+
+	step := DAG(nEntry, nDeadEnd, nCA, nCB)
+	err := step(context.Background())
+	if !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle, got %v", err)
+	}
+}
+
+func TestDAGCycleBranchBacktracking(t *testing.T) {
+	nDead := Node("dead", func(ctx context.Context) error { return nil }).After("c1")
+	nC2 := Node("c2", func(ctx context.Context) error { return nil })
+	nC1 := Node("c1", func(ctx context.Context) error { return nil }).After("c2")
+	nC2.After("c1")
+
+	step := DAG(nC1, nDead, nC2)
+	err := step(context.Background())
+	if !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle, got %v", err)
+	}
 }
 
 func TestDAGUnknownDependency(t *testing.T) {
@@ -174,6 +218,9 @@ func TestDAGUnknownDependency(t *testing.T) {
 	err := step(context.Background())
 	if err == nil {
 		t.Fatal("expected unknown dependency error, got nil")
+	}
+	if !errors.Is(err, ErrDAGUnknownDependency) {
+		t.Fatalf("expected ErrDAGUnknownDependency, got %v", err)
 	}
 }
 
@@ -185,6 +232,9 @@ func TestDAGDuplicateNode(t *testing.T) {
 	err := step(context.Background())
 	if err == nil {
 		t.Fatal("expected duplicate node error, got nil")
+	}
+	if !errors.Is(err, ErrDAGDuplicateNode) {
+		t.Fatalf("expected ErrDAGDuplicateNode, got %v", err)
 	}
 }
 
@@ -241,6 +291,9 @@ func TestDAGNilNode(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected nil node error, got nil")
 	}
+	if !errors.Is(err, ErrDAGNilNode) {
+		t.Fatalf("expected ErrDAGNilNode, got %v", err)
+	}
 }
 
 func TestDAGEmptyNodeName(t *testing.T) {
@@ -249,6 +302,9 @@ func TestDAGEmptyNodeName(t *testing.T) {
 	err := step(context.Background())
 	if err == nil {
 		t.Fatal("expected empty node name error, got nil")
+	}
+	if !errors.Is(err, ErrDAGEmptyNodeName) {
+		t.Fatalf("expected ErrDAGEmptyNodeName, got %v", err)
 	}
 }
 
@@ -697,6 +753,10 @@ func TestDAGPlan(t *testing.T) {
 	n2 := Node("n2", record("n2")).After("n1")
 
 	plan := NewDAG(n1, n2)
+	if err := plan.Validate(); err != nil {
+		t.Fatalf("expected nil error from plan.Validate(), got %v", err)
+	}
+
 	m, err := plan.ToMermaid()
 	if err != nil || !strings.Contains(m, "n1[\"n1\"] --> n2[\"n2\"]") {
 		t.Fatalf("unexpected mermaid: %q (err=%v)", m, err)
@@ -724,7 +784,18 @@ func TestDAGPlan(t *testing.T) {
 		t.Fatalf("unexpected trace: %v", trace)
 	}
 
+	cyclicPlan := NewDAG(
+		Node("cA", func(ctx context.Context) error { return nil }).After("cB"),
+		Node("cB", func(ctx context.Context) error { return nil }).After("cA"),
+	)
+	if err := cyclicPlan.Validate(); !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle from cyclicPlan.Validate(), got %v", err)
+	}
+
 	var nilPlan *DAGPlan[context.Context]
+	if err := nilPlan.Validate(); err != nil {
+		t.Fatalf("expected nil error for nilPlan.Validate(), got %v", err)
+	}
 	if err := nilPlan.Step()(context.Background()); err != nil {
 		t.Fatalf("expected nil error for nil plan step, got %v", err)
 	}
