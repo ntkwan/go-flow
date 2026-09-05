@@ -136,9 +136,9 @@ jobs:
         shell: bash
         run: |
           cd test
-          go test -fuzz=FuzzDAG -fuzztime=3s ./fuzz
-          go test -fuzz=FuzzChunk -fuzztime=3s ./fuzz
-          go test -fuzz=FuzzPipeSeq -fuzztime=3s ./fuzz
+          go test -fuzz=FuzzDAG -fuzztime=500x ./fuzz
+          go test -fuzz=FuzzChunk -fuzztime=500x ./fuzz
+          go test -fuzz=FuzzPipeSeq -fuzztime=500x ./fuzz
 
       - name: Enforce 100% Coverage Threshold
         shell: bash

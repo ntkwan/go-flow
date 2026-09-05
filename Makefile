@@ -20,9 +20,9 @@ leak:
 	cd test/leak && go test -v ./...
 
 fuzz:
-	cd test && go test -fuzz=FuzzDAG -fuzztime=5s ./fuzz
-	cd test && go test -fuzz=FuzzChunk -fuzztime=5s ./fuzz
-	cd test && go test -fuzz=FuzzPipeSeq -fuzztime=5s ./fuzz
+	cd test && go test -fuzz=FuzzDAG -fuzztime=500x ./fuzz
+	cd test && go test -fuzz=FuzzChunk -fuzztime=500x ./fuzz
+	cd test && go test -fuzz=FuzzPipeSeq -fuzztime=500x ./fuzz
 
 cover:
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
