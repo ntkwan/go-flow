@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          check-latest: true
+
+      - name: Verify Build and Tests
+        run: |
+          go build ./...
+          go test -race -coverprofile=coverage.out ./...
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
+
+      - name: Index on pkg.go.dev
+        run: |
+          VERSION="${{ github.ref_name }}"
+          GOPROXY=https://proxy.golang.org GO111MODULE=on go list -m github.com/ntkwan/go-flow@${VERSION} || true
