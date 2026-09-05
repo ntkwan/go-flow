@@ -109,10 +109,13 @@ func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 		}
 
 		var wg sync.WaitGroup
+		wg.Add(len(nodes))
 		for _, rn := range runtimeMap {
-			r := rn
-			wg.Go(func() {
-				defer close(r.done)
+			go func(r *dagRuntimeNode[T]) {
+				defer func() {
+					close(r.done)
+					wg.Done()
+				}()
 
 				for _, depName := range r.node.dependsOn {
 					dep := runtimeMap[depName]
@@ -135,7 +138,7 @@ func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 				if r.node.step != nil {
 					r.err = r.node.step(ctx)
 				}
-			})
+			}(rn)
 		}
 
 		wg.Wait()

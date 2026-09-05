@@ -20,11 +20,14 @@ func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 		sem := make(chan struct{}, limit)
 		for i, step := range steps {
 			sem <- struct{}{}
-			idx, s := i, step
-			wg.Go(func() {
-				defer func() { <-sem }()
+			wg.Add(1)
+			go func(idx int, s Step[T]) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
 				errs[idx] = s(ctx)
-			})
+			}(i, step)
 		}
 		wg.Wait()
 		return errors.Join(errs...)

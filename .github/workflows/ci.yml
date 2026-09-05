@@ -55,6 +55,10 @@ jobs:
           check-latest: true
       - name: Run Static Analysis
         run: go vet ./...
+      - name: Run GolangCI-Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
 
   test:
     runs-on: ${{ matrix.os }}

@@ -1,6 +1,6 @@
-.PHONY: all test test-race cover fmt check bench clean
+.PHONY: all test test-race cover fmt lint check bench clean
 
-all: check test-race
+all: check lint test-race
 
 test:
 	go test -v ./...
@@ -14,6 +14,9 @@ cover:
 
 fmt:
 	gofmt -w -s .
+
+lint:
+	golangci-lint run ./...
 
 check:
 	@UNFORMATTED=$$(gofmt -l .); \

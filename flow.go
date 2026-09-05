@@ -28,11 +28,12 @@ func Go[T context.Context](steps ...Step[T]) Step[T] {
 		}
 		errs := make([]error, len(steps))
 		var wg sync.WaitGroup
+		wg.Add(len(steps))
 		for i, step := range steps {
-			idx, s := i, step
-			wg.Go(func() {
+			go func(idx int, s Step[T]) {
+				defer wg.Done()
 				errs[idx] = s(ctx)
-			})
+			}(i, step)
 		}
 		wg.Wait()
 		return errors.Join(errs...)
@@ -100,10 +101,9 @@ func (s Step[T]) Timeout(d time.Duration) Step[T] {
 		}
 
 		done := make(chan error, 1)
-		var wg sync.WaitGroup
-		wg.Go(func() {
+		go func() {
 			done <- s(stepCtx)
-		})
+		}()
 
 		select {
 		case <-timeoutCtx.Done():
