@@ -22,7 +22,7 @@ Concurrent Go code often turns into boilerplate: goroutines, channels, waitgroup
 `go-flow` lets you write workflows as explicit dependency graphs and linear pipelines:
 
 - **Readable & Maintainable**: Business logic stays in normal Go functions. Timeouts, retries, fallbacks, and recovery are attached as step decorators.
-- **Graph-Based Construction**: Declare DAG workflows with `.After("depA", "depB")`, validate cycles at startup, and export diagrams with `plan.ToMermaid()`.
+- **Graph-Based Construction**: Declare DAG workflows with explicit edges (`flow.Edge(fetchUser, processPayment)`), catch cycles at startup, and export diagrams with `plan.ToMermaid()`.
 - **Easy for Static Tools & AI**: Because dependencies are declared explicitly in code instead of wired through runtime channel passing, tools and AI agents can read the full execution graph directly from the AST without grepping through goroutine closures.
 
 ---
