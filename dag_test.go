@@ -211,6 +211,18 @@ func TestDAGCycleBranchBacktracking(t *testing.T) {
 	}
 }
 
+func TestDAGCycleWithResolvedSink(t *testing.T) {
+	nSink := Node("sink", func(ctx context.Context) error { return nil }).After("cA")
+	nCA := Node("cA", func(ctx context.Context) error { return nil }).After("cB")
+	nCB := Node("cB", func(ctx context.Context) error { return nil }).After("cA")
+
+	step := DAG(nSink, nCA, nCB)
+	err := step(context.Background())
+	if !errors.Is(err, ErrDAGCycle) {
+		t.Fatalf("expected ErrDAGCycle, got %v", err)
+	}
+}
+
 func TestDAGUnknownDependency(t *testing.T) {
 	nA := Node("A", func(ctx context.Context) error { return nil }).After("nonexistent")
 

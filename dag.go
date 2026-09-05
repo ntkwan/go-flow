@@ -79,9 +79,6 @@ func findCyclePath[T context.Context](nodes []*DAGNode[T], graph map[string][]st
 		path = append(path, u)
 
 		for _, v := range graph[u] {
-			if inDegree[v] == 0 {
-				continue
-			}
 			if visited[v] == 1 {
 				idx := 0
 				for i, p := range path {
