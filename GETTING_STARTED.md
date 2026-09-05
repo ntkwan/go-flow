@@ -22,7 +22,8 @@ A step-by-step guide to building structured concurrency workflows and dependency
   - [4. Pre-Execution Validation & Cycle Path Tracing](#4-pre-execution-validation--cycle-path-tracing)
   - [5. Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN` / `StepN`)](#5-bounded-concurrency-dags-dagn--dagedgesn--stepn)
   - [6. Composite & Resilient DAG Nodes](#6-composite--resilient-dag-nodes)
-  - [7. Visual Graph Export (Mermaid & Graphviz DOT)](#7-visual-graph-export-mermaid--graphviz-dot)
+  - [7. DAG Execution Reports & Observability](#7-dag-execution-reports--observability)
+  - [8. Visual Graph Export (Mermaid & Graphviz DOT)](#8-visual-graph-export-mermaid--graphviz-dot)
 - [10. Custom Contexts](#10-custom-contexts)
 - [Examples Catalog](#examples-catalog)
 

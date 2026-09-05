@@ -439,6 +439,7 @@ func TestDAGReport(t *testing.T) {
 			for !enteredBlock.Load() {
 				time.Sleep(1 * time.Millisecond)
 			}
+			time.Sleep(20 * time.Millisecond)
 			cancelSem()
 		}()
 		rep, err = semExec(ctxSem)

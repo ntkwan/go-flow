@@ -443,20 +443,24 @@ func TestDAGN(t *testing.T) {
 	}
 
 	ctxSemCancel, cancelSem := context.WithCancel(context.Background())
+	var blocker1Started atomic.Bool
 	nBlocker1 := Node("blocker1", func(ctx context.Context) error {
-		time.Sleep(50 * time.Millisecond)
-		return nil
+		blocker1Started.Store(true)
+		<-ctx.Done()
+		time.Sleep(30 * time.Millisecond)
+		return ctx.Err()
 	})
 	nBlocker2 := Node("blocker2", func(ctx context.Context) error {
-		time.Sleep(50 * time.Millisecond)
 		return nil
 	})
 	nBlocker3 := Node("blocker3", func(ctx context.Context) error {
-		time.Sleep(50 * time.Millisecond)
 		return nil
 	})
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		for !blocker1Started.Load() {
+			time.Sleep(1 * time.Millisecond)
+		}
+		time.Sleep(20 * time.Millisecond)
 		cancelSem()
 	}()
 	if err := DAGN(1, nBlocker1, nBlocker2, nBlocker3)(ctxSemCancel); err == nil {
