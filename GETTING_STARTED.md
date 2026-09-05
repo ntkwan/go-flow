@@ -365,18 +365,23 @@ workflow := plan.StepN(2)
 
 ### 6. Composite & Resilient DAG Nodes
 
-Embed retries, timeouts, fallbacks, conditional guards, and sub-pipelines directly into individual graph nodes:
+Embed retries, timeouts, fallbacks, conditional guards, and sub-pipelines directly onto individual graph nodes using fluent builder methods:
 
 ```go
-// Node with retry and timeout policies
-userNode := flow.Node("fetch-user",
-    flow.Step[*Context](fetchUser).Retry(3, 10*time.Millisecond).Timeout(500*time.Millisecond),
-)
+// Node with fluent retry and timeout policies
+userNode := flow.Node("fetch-user", fetchUser).
+    WithRetry(3, 10*time.Millisecond).
+    WithTimeout(500*time.Millisecond)
 
-// Conditional node: runs only when condition is true
-vipNode := flow.Node("vip-discount",
-    flow.Step[*Context](applyVIPDiscount).When(func(c *Context) bool { return c.IsVIP }),
-).After("fetch-user")
+// Conditional node: skips execution at runtime if predicate is false
+vipNode := flow.Node("vip-discount", applyVIPDiscount).
+    After("fetch-user").
+    When(func(c *Context) bool { return c.IsVIP })
+
+// Inverse conditional node: skips execution when predicate is true
+standardNode := flow.Node("standard-shipping", applyStandardShipping).
+    After("fetch-user").
+    Unless(func(c *Context) bool { return c.IsVIP })
 
 // Embedded sequential pipeline as a single node
 enrichNode := flow.Node("enrich-profile",
@@ -384,12 +389,35 @@ enrichNode := flow.Node("enrich-profile",
 ).After("fetch-user")
 
 // Protected payment node with secondary fallback gateway
-paymentNode := flow.Node("process-payment",
-    flow.Step[*Context](primaryGateway).Fallback(secondaryGateway),
-).After("vip-discount", "enrich-profile")
+paymentNode := flow.Node("process-payment", primaryGateway).
+    After("vip-discount", "enrich-profile").
+    WithFallback(secondaryGateway).
+    WithRecover()
 ```
 
-### 7. Visual Graph Export (Mermaid & Graphviz DOT)
+### 7. DAG Execution Reports & Observability
+
+Collect execution summaries, per-node latency, and execution status (`NodeStatusSuccess`, `NodeStatusFailed`, `NodeStatusSkipped`) with zero external dependencies:
+
+```go
+// Execute and inspect per-node execution telemetry
+report, err := plan.ExecWithReport(ctx)
+if err != nil {
+    log.Println("Workflow failed:", err)
+}
+
+fmt.Printf("DAG completed in %v\n", report.Duration)
+for _, node := range report.Nodes {
+    fmt.Printf("  • %-15s [%s] took %v (error: %v)\n", node.Name, node.Status, node.Duration, node.Err)
+}
+
+// Or query subsets of results:
+successfulNodes := report.Successful()
+skippedNodes := report.Skipped()
+failedNodes := report.Failed()
+```
+
+### 8. Visual Graph Export (Mermaid & Graphviz DOT)
 
 Generate diagrams directly from Go code:
 
@@ -425,7 +453,7 @@ graph TD
 ```
 <!-- AUTO-GENERATED-DAG:END -->
 
-*See runnable comparisons under [`examples/dag/`](examples/dag/): [`1_named_nodes`](examples/dag/1_named_nodes/with_flow/main.go), [`2_fluent_edges`](examples/dag/2_fluent_edges/with_flow/main.go), [`3_resilient_composite`](examples/dag/3_resilient_composite/with_flow/main.go), [`4_bounded_concurrency`](examples/dag/4_bounded_concurrency/with_flow/main.go), [`5_visual_export`](examples/dag/5_visual_export/with_flow/main.go)*
+*See runnable comparisons under [`examples/dag/`](examples/dag/): [`1_named_nodes`](examples/dag/1_named_nodes/with_flow/main.go), [`2_fluent_edges`](examples/dag/2_fluent_edges/with_flow/main.go), [`3_resilient_composite`](examples/dag/3_resilient_composite/with_flow/main.go), [`4_bounded_concurrency`](examples/dag/4_bounded_concurrency/with_flow/main.go), [`5_visual_export`](examples/dag/5_visual_export/with_flow/main.go), [`6_conditional_and_report`](examples/dag/6_conditional_and_report/main.go)*
 
 ---
 

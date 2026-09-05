@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -21,6 +22,7 @@ type DAGNode[T context.Context] struct {
 	name      string
 	step      Step[T]
 	dependsOn []string
+	condition func(ctx T) bool
 }
 
 type DAGConnection[T context.Context] struct {
@@ -59,6 +61,61 @@ func (b DAGEdgeBuilder[T]) To(to ...Step[T]) DAGConnection[T] {
 
 func (n *DAGNode[T]) After(deps ...string) *DAGNode[T] {
 	n.dependsOn = append(n.dependsOn, deps...)
+	return n
+}
+
+func (n *DAGNode[T]) When(predicate func(ctx T) bool) *DAGNode[T] {
+	if predicate != nil {
+		n.condition = predicate
+	}
+	return n
+}
+
+func (n *DAGNode[T]) Unless(predicate func(ctx T) bool) *DAGNode[T] {
+	if predicate != nil {
+		n.condition = func(ctx T) bool {
+			return !predicate(ctx)
+		}
+	}
+	return n
+}
+
+func (n *DAGNode[T]) WithTimeout(d time.Duration) *DAGNode[T] {
+	if n.step != nil {
+		n.step = n.step.Timeout(d)
+	}
+	return n
+}
+
+func (n *DAGNode[T]) WithRetry(attempts int, delay ...time.Duration) *DAGNode[T] {
+	if n.step != nil {
+		var d time.Duration
+		if len(delay) > 0 {
+			d = delay[0]
+		}
+		n.step = n.step.Retry(attempts, d)
+	}
+	return n
+}
+
+func (n *DAGNode[T]) WithRecover() *DAGNode[T] {
+	if n.step != nil {
+		n.step = n.step.Recover()
+	}
+	return n
+}
+
+func (n *DAGNode[T]) WithCatch(handler func(ctx T, err error) error) *DAGNode[T] {
+	if n.step != nil {
+		n.step = n.step.Catch(handler)
+	}
+	return n
+}
+
+func (n *DAGNode[T]) WithFallback(fallback Step[T]) *DAGNode[T] {
+	if n.step != nil {
+		n.step = n.step.Fallback(fallback)
+	}
 	return n
 }
 
@@ -159,8 +216,10 @@ func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 }
 
 type compiledDAGNode[T context.Context] struct {
-	step    Step[T]
-	depIdxs []int
+	name      string
+	step      Step[T]
+	depIdxs   []int
+	condition func(ctx T) bool
 }
 
 func compileDAG[T context.Context](nodes []*DAGNode[T]) ([]compiledDAGNode[T], error) {
@@ -173,7 +232,9 @@ func compileDAG[T context.Context](nodes []*DAGNode[T]) ([]compiledDAGNode[T], e
 	}
 	compiled := make([]compiledDAGNode[T], len(nodes))
 	for i, n := range nodes {
+		compiled[i].name = n.name
 		compiled[i].step = n.step
+		compiled[i].condition = n.condition
 		if len(n.dependsOn) > 0 {
 			compiled[i].depIdxs = make([]int, len(n.dependsOn))
 			for j, dep := range n.dependsOn {
@@ -225,6 +286,10 @@ func DAG[T context.Context](nodes ...*DAGNode[T]) Step[T] {
 
 				if ctx.Err() != nil {
 					errs[idx] = ctx.Err()
+					return
+				}
+
+				if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
 					return
 				}
 
@@ -281,6 +346,10 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 
 				if ctx.Err() != nil {
 					errs[idx] = ctx.Err()
+					return
+				}
+
+				if compiled[idx].condition != nil && !compiled[idx].condition(ctx) {
 					return
 				}
 
@@ -395,6 +464,34 @@ func (p *DAGPlan[T]) StepN(limit int) Step[T] {
 		return func(ctx T) error { return nil }
 	}
 	return DAGN(limit, p.nodes...)
+}
+
+func (p *DAGPlan[T]) ExecWithReport(ctx T) (*DAGReport, error) {
+	if p == nil || len(p.nodes) == 0 {
+		return &DAGReport{}, nil
+	}
+	return DAGWithReport(p.nodes...)(ctx)
+}
+
+func (p *DAGPlan[T]) ExecNWithReport(limit int, ctx T) (*DAGReport, error) {
+	if p == nil || len(p.nodes) == 0 {
+		return &DAGReport{}, nil
+	}
+	return DAGNWithReport(limit, p.nodes...)(ctx)
+}
+
+func (p *DAGPlan[T]) StepWithReport() func(ctx T) (*DAGReport, error) {
+	if p == nil || len(p.nodes) == 0 {
+		return func(ctx T) (*DAGReport, error) { return &DAGReport{}, nil }
+	}
+	return DAGWithReport(p.nodes...)
+}
+
+func (p *DAGPlan[T]) StepNWithReport(limit int) func(ctx T) (*DAGReport, error) {
+	if p == nil || len(p.nodes) == 0 {
+		return func(ctx T) (*DAGReport, error) { return &DAGReport{}, nil }
+	}
+	return DAGNWithReport(limit, p.nodes...)
 }
 
 func (p *DAGPlan[T]) Validate() error {

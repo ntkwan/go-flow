@@ -21,6 +21,7 @@ type patternsContext struct {
 	execOrder       []string
 	mu              sync.Mutex
 	dagErr          error
+	report          *flow.DAGReport
 	parallelSteps   []flow.Step[context.Context]
 	parallelErr     error
 	completedCount  atomic.Int32
@@ -69,6 +70,26 @@ func (c *patternsContext) aNodeThatDependsOn(name, dep string) error {
 	return nil
 }
 
+func (c *patternsContext) aNodeThatDependsOnWithFalseCondition(name, dep string) error {
+	c.nodes[name] = flow.Node(name, func(ctx context.Context) error {
+		c.mu.Lock()
+		c.execOrder = append(c.execOrder, name)
+		c.mu.Unlock()
+		return nil
+	}).After(dep).When(func(ctx context.Context) bool { return false })
+	return nil
+}
+
+func (c *patternsContext) aDAGWithAFailingNode(name string) error {
+	c.nodes[name] = flow.Node(name, func(ctx context.Context) error {
+		c.mu.Lock()
+		c.execOrder = append(c.execOrder, name)
+		c.mu.Unlock()
+		return errors.New("node " + name + " failed")
+	})
+	return nil
+}
+
 func (c *patternsContext) aDAGWithRootNodeThatReturnsAnError(name string) error {
 	c.nodes[name] = flow.Node(name, func(ctx context.Context) error {
 		c.mu.Lock()
@@ -113,23 +134,86 @@ func (c *patternsContext) theDAGIsExecuted() error {
 	return nil
 }
 
-func (c *patternsContext) nodeCompletesBeforeStarts(first, second string) error {
+func (c *patternsContext) theDAGIsExecutedWithAReport() error {
+	var nodeList []*flow.DAGNode[context.Context]
+	for _, n := range c.nodes {
+		nodeList = append(nodeList, n)
+	}
+	exec := flow.DAGWithReport(nodeList...)
+	c.report, c.dagErr = exec(context.Background())
+	return nil
+}
+
+func (c *patternsContext) nodeStatusIs(name, expectedStatus string) error {
+	if c.report == nil {
+		return errors.New("expected report to be non-nil")
+	}
+	nodeRep := c.report.Node(name)
+	if nodeRep == nil {
+		return fmt.Errorf("node %q not found in report", name)
+	}
+	if string(nodeRep.Status) != expectedStatus {
+		return fmt.Errorf("expected node %q status %s, got %s", name, expectedStatus, nodeRep.Status)
+	}
+	return nil
+}
+
+func (c *patternsContext) nodeReportsAnError(name string) error {
+	if c.report == nil {
+		return errors.New("expected report to be non-nil")
+	}
+	nodeRep := c.report.Node(name)
+	if nodeRep == nil || nodeRep.Err == nil {
+		return fmt.Errorf("expected node %q to have error in report", name)
+	}
+	return nil
+}
+
+func (c *patternsContext) nodeIsNotExecuted(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	endFirst, ok1 := c.endTimes[first]
-	startSecond, ok2 := c.startTimes[second]
-	if !ok1 || !ok2 {
-		return fmt.Errorf("missing timestamp for %s or %s", first, second)
+	for _, executed := range c.execOrder {
+		if executed == name {
+			return fmt.Errorf("expected node %q not to be executed", name)
+		}
 	}
-	if !endFirst.Before(startSecond) && !endFirst.Equal(startSecond) {
-		return fmt.Errorf("node %s ended at %v, but %s started at %v", first, endFirst, second, startSecond)
+	return nil
+}
+
+func (c *patternsContext) theOverallDAGExecutionSucceeds() error {
+	if c.dagErr != nil {
+		return fmt.Errorf("expected DAG to succeed, got: %v", c.dagErr)
+	}
+	return nil
+}
+
+func (c *patternsContext) theReportRecordsAPositiveExecutionDuration() error {
+	if c.report == nil {
+		return errors.New("expected report to be non-nil")
+	}
+	if c.report.Duration < 0 {
+		return fmt.Errorf("expected positive duration, got %v", c.report.Duration)
+	}
+	return nil
+}
+
+func (c *patternsContext) nodeCompletesBeforeStarts(nodeA, nodeB string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	endA, okA := c.endTimes[nodeA]
+	startB, okB := c.startTimes[nodeB]
+	if !okA || !okB {
+		return fmt.Errorf("missing timestamps: %s=%v, %s=%v", nodeA, okA, nodeB, okB)
+	}
+	if endA.After(startB) {
+		return fmt.Errorf("node %s ended at %v after %s started at %v", nodeA, endA, nodeB, startB)
 	}
 	return nil
 }
 
 func (c *patternsContext) theDAGExecutionSucceeds() error {
 	if c.dagErr != nil {
-		return fmt.Errorf("expected dag success, got: %w", c.dagErr)
+		return fmt.Errorf("expected DAG to succeed, got: %v", c.dagErr)
 	}
 	return nil
 }
@@ -137,8 +221,8 @@ func (c *patternsContext) theDAGExecutionSucceeds() error {
 func (c *patternsContext) nodeIsNeverExecuted(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, exec := range c.execOrder {
-		if exec == name {
+	for _, n := range c.execOrder {
+		if n == name {
 			return fmt.Errorf("node %s was executed", name)
 		}
 	}
@@ -147,10 +231,11 @@ func (c *patternsContext) nodeIsNeverExecuted(name string) error {
 
 func (c *patternsContext) theDAGExecutionFailsWithNodeError(name string) error {
 	if c.dagErr == nil {
-		return errors.New("expected dag error, got nil")
+		return errors.New("expected DAG to fail, but it succeeded")
 	}
-	if !strings.Contains(c.dagErr.Error(), "node "+name+" failure") {
-		return fmt.Errorf("expected error from %s, got: %w", name, c.dagErr)
+	expected := "node " + name + " failure"
+	if !strings.Contains(c.dagErr.Error(), expected) {
+		return fmt.Errorf("expected error containing %q, got: %v", expected, c.dagErr)
 	}
 	return nil
 }
@@ -158,59 +243,70 @@ func (c *patternsContext) theDAGExecutionFailsWithNodeError(name string) error {
 func (c *patternsContext) nodesAndExecuteConcurrently(name1, name2 string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	start1 := c.startTimes[name1]
-	end1 := c.endTimes[name1]
-	start2 := c.startTimes[name2]
-	end2 := c.endTimes[name2]
-	if end1.Before(start2) || end2.Before(start1) {
-		return fmt.Errorf("nodes %s and %s did not overlap in execution", name1, name2)
+	start1, ok1 := c.startTimes[name1]
+	start2, ok2 := c.startTimes[name2]
+	if !ok1 || !ok2 {
+		return fmt.Errorf("missing timestamps for concurrent check")
+	}
+	diff := start1.Sub(start2)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > 15*time.Millisecond {
+		return fmt.Errorf("nodes %s and %s did not start concurrently, diff: %v", name1, name2, diff)
 	}
 	return nil
 }
 
 func (c *patternsContext) parallelStepsThatSucceed(count int) error {
-	c.parallelSteps = nil
+	c.parallelSteps = make([]flow.Step[context.Context], count)
 	for i := 0; i < count; i++ {
-		c.parallelSteps = append(c.parallelSteps, func(ctx context.Context) error {
+		c.parallelSteps[i] = func(ctx context.Context) error {
+			time.Sleep(10 * time.Millisecond)
 			c.completedCount.Add(1)
 			return nil
-		})
+		}
 	}
 	return nil
 }
 
 func (c *patternsContext) parallelStepsThatSucceedAndThatFailsWith(successCount, failCount int, errMsg string) error {
-	c.parallelSteps = nil
+	c.parallelSteps = make([]flow.Step[context.Context], successCount+failCount)
 	for i := 0; i < successCount; i++ {
-		c.parallelSteps = append(c.parallelSteps, func(ctx context.Context) error {
+		c.parallelSteps[i] = func(ctx context.Context) error {
+			time.Sleep(10 * time.Millisecond)
 			c.completedCount.Add(1)
 			return nil
-		})
+		}
 	}
 	for i := 0; i < failCount; i++ {
-		c.parallelSteps = append(c.parallelSteps, func(ctx context.Context) error {
+		c.parallelSteps[successCount+i] = func(ctx context.Context) error {
 			return errors.New(errMsg)
-		})
+		}
 	}
 	return nil
 }
 
 func (c *patternsContext) parallelStepsThatFailWithErrorsAnd(count int, err1, err2 string) error {
-	c.parallelSteps = []flow.Step[context.Context]{
-		func(ctx context.Context) error { return errors.New(err1) },
-		func(ctx context.Context) error { return errors.New(err2) },
+	errMessages := []string{err1, err2}
+	c.parallelSteps = make([]flow.Step[context.Context], count)
+	for i := 0; i < count; i++ {
+		msg := errMessages[i%len(errMessages)]
+		c.parallelSteps[i] = func(ctx context.Context) error {
+			return errors.New(msg)
+		}
 	}
 	return nil
 }
 
-func (c *patternsContext) parallelStepsWithAConcurrencyLimitOf(total, limit int) error {
-	c.parallelSteps = nil
-	for i := 0; i < total; i++ {
-		c.parallelSteps = append(c.parallelSteps, func(ctx context.Context) error {
+func (c *patternsContext) parallelStepsWithAConcurrencyLimitOf(count, limit int) error {
+	c.parallelSteps = make([]flow.Step[context.Context], count)
+	for i := 0; i < count; i++ {
+		c.parallelSteps[i] = func(ctx context.Context) error {
 			cur := c.activeCount.Add(1)
 			for {
-				max := c.maxActive.Load()
-				if cur <= max || c.maxActive.CompareAndSwap(max, cur) {
+				old := c.maxActive.Load()
+				if cur <= old || c.maxActive.CompareAndSwap(old, cur) {
 					break
 				}
 			}
@@ -218,73 +314,85 @@ func (c *patternsContext) parallelStepsWithAConcurrencyLimitOf(total, limit int)
 			c.activeCount.Add(-1)
 			c.completedCount.Add(1)
 			return nil
-		})
+		}
 	}
 	return nil
 }
 
 func (c *patternsContext) theParallelFlowIsExecuted() error {
-	f := flow.Go(c.parallelSteps...)
-	c.parallelErr = f(context.Background())
+	parallelFlow := flow.Go(c.parallelSteps...)
+	c.parallelErr = parallelFlow(context.Background())
 	return nil
 }
 
 func (c *patternsContext) theBoundedParallelFlowIsExecuted() error {
-	f := flow.GoN(2, c.parallelSteps...)
-	c.parallelErr = f(context.Background())
+	boundedFlow := flow.GoN(2, c.parallelSteps...)
+	c.parallelErr = boundedFlow(context.Background())
 	return nil
 }
 
-func (c *patternsContext) allStepsComplete(expected int) error {
-	if int(c.completedCount.Load()) != expected {
-		return fmt.Errorf("expected %d completed steps, got %d", expected, c.completedCount.Load())
+func (c *patternsContext) allStepsComplete(count int) error {
+	if int(c.completedCount.Load()) != count {
+		return fmt.Errorf("expected %d completed steps, got %d", count, c.completedCount.Load())
 	}
 	return nil
 }
 
 func (c *patternsContext) theParallelFlowSucceeds() error {
 	if c.parallelErr != nil {
-		return fmt.Errorf("expected success, got: %w", c.parallelErr)
+		return fmt.Errorf("expected parallel flow to succeed, got: %v", c.parallelErr)
 	}
 	return nil
 }
 
 func (c *patternsContext) theBoundedParallelFlowSucceeds() error {
 	if c.parallelErr != nil {
-		return fmt.Errorf("expected success, got: %w", c.parallelErr)
+		return fmt.Errorf("expected bounded parallel flow to succeed, got: %v", c.parallelErr)
 	}
 	return nil
 }
 
 func (c *patternsContext) theParallelFlowFailsWithErrorContaining(errMsg string) error {
 	if c.parallelErr == nil {
-		return errors.New("expected error, got nil")
+		return errors.New("expected parallel flow to fail, got nil")
 	}
 	if !strings.Contains(c.parallelErr.Error(), errMsg) {
-		return fmt.Errorf("expected error containing %q, got: %w", errMsg, c.parallelErr)
+		return fmt.Errorf("expected error containing %q, got: %v", errMsg, c.parallelErr)
 	}
 	return nil
 }
 
 func (c *patternsContext) theParallelFlowFailsWithJoinedErrorContainingAnd(err1, err2 string) error {
 	if c.parallelErr == nil {
-		return errors.New("expected error, got nil")
+		return errors.New("expected joined error, got nil")
 	}
 	if !strings.Contains(c.parallelErr.Error(), err1) || !strings.Contains(c.parallelErr.Error(), err2) {
-		return fmt.Errorf("expected error containing %q and %q, got: %w", err1, err2, c.parallelErr)
+		return fmt.Errorf("expected error containing both %q and %q, got: %v", err1, err2, c.parallelErr)
 	}
 	return nil
 }
 
 func (c *patternsContext) atMostStepsRunConcurrently(limit int) error {
 	if int(c.maxActive.Load()) > limit {
-		return fmt.Errorf("expected max %d active, observed %d", limit, c.maxActive.Load())
+		return fmt.Errorf("expected max %d active goroutines, got %d", limit, c.maxActive.Load())
 	}
 	return nil
 }
 
 func (c *patternsContext) scatterStepsProducingResults(count int, r1, r2, r3 string) error {
-	c.scatterResults = []string{r1, r2, r3}
+	results := []string{r1, r2, r3}
+	c.scatterResults = make([]string, count)
+	c.parallelSteps = make([]flow.Step[context.Context], count)
+	for i := 0; i < count; i++ {
+		idx := i
+		c.parallelSteps[i] = func(ctx context.Context) error {
+			time.Sleep(10 * time.Millisecond)
+			c.mu.Lock()
+			c.scatterResults[idx] = results[idx]
+			c.mu.Unlock()
+			return nil
+		}
+	}
 	return nil
 }
 
@@ -293,60 +401,45 @@ func (c *patternsContext) aGatherStepThatCollectsAllResultsIntoAnAggregate() err
 }
 
 func (c *patternsContext) theScattergatherWorkflowIsExecuted() error {
-	type resultKey struct{}
-	type state struct {
-		mu   sync.Mutex
-		data []string
-	}
-	st := &state{}
-
-	var steps []flow.Step[context.Context]
-	for _, item := range c.scatterResults {
-		val := item
-		steps = append(steps, func(ctx context.Context) error {
-			s := ctx.Value(resultKey{}).(*state)
-			s.mu.Lock()
-			s.data = append(s.data, val)
-			s.mu.Unlock()
-			return nil
-		})
-	}
-
-	scatter := flow.Go(steps...)
+	scatter := flow.Go(c.parallelSteps...)
 	gather := func(ctx context.Context) error {
-		s := ctx.Value(resultKey{}).(*state)
-		s.mu.Lock()
-		c.gatheredResults = append([]string(nil), s.data...)
-		s.mu.Unlock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.gatheredResults = append([]string{}, c.scatterResults...)
 		return nil
 	}
-
-	pipeline := flow.Seq(scatter, gather)
-	ctx := context.WithValue(context.Background(), resultKey{}, st)
-	return pipeline(ctx)
+	workflow := flow.Seq(scatter, gather)
+	c.parallelErr = workflow(context.Background())
+	return nil
 }
 
 func (c *patternsContext) theAggregateContains(r1, r2, r3 string) error {
-	expected := map[string]bool{r1: true, r2: true, r3: true}
-	for _, res := range c.gatheredResults {
-		delete(expected, res)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	expected := []string{r1, r2, r3}
+	if len(c.gatheredResults) != len(expected) {
+		return fmt.Errorf("expected %d results, got %d", len(expected), len(c.gatheredResults))
 	}
-	if len(expected) > 0 {
-		return fmt.Errorf("missing results: %v, got %v", expected, c.gatheredResults)
+	for i, r := range expected {
+		if c.gatheredResults[i] != r {
+			return fmt.Errorf("expected result %d to be %q, got %q", i, r, c.gatheredResults[i])
+		}
 	}
 	return nil
 }
 
 func (c *patternsContext) theScattergatherWorkflowSucceeds() error {
-	if len(c.gatheredResults) != len(c.scatterResults) {
-		return fmt.Errorf("expected %d gathered results, got %d", len(c.scatterResults), len(c.gatheredResults))
+	if c.parallelErr != nil {
+		return fmt.Errorf("expected scatter-gather workflow to succeed, got: %v", c.parallelErr)
 	}
 	return nil
 }
 
-func (c *patternsContext) aDAGWithDependencyBetweenAnd(from, to string) error {
-	c.nodes[from] = flow.Node(from, func(ctx context.Context) error { return nil })
-	c.nodes[to] = flow.Node(to, func(ctx context.Context) error { return nil }).After(from)
+func (c *patternsContext) aDAGWithDependencyBetweenAnd(parent, child string) error {
+	pStep := func(ctx context.Context) error { return nil }
+	cStep := func(ctx context.Context) error { return nil }
+	c.nodes[parent] = flow.Node(parent, pStep)
+	c.nodes[child] = flow.Node(child, cStep).After(parent)
 	return nil
 }
 
@@ -360,12 +453,9 @@ func (c *patternsContext) theDAGIsExportedToMermaidFormat() error {
 	for _, n := range c.nodes {
 		nodeList = append(nodeList, n)
 	}
-	out, err := flow.DAGToMermaid(nodeList...)
-	if err != nil {
-		return err
-	}
-	c.mermaidOutput = out
-	return nil
+	var err error
+	c.mermaidOutput, err = flow.DAGToMermaid(nodeList...)
+	return err
 }
 
 func (c *patternsContext) theMermaidOutputContainsEdgeFromTo(from, to string) error {
@@ -373,7 +463,7 @@ func (c *patternsContext) theMermaidOutputContainsEdgeFromTo(from, to string) er
 	escapedTo := strings.ReplaceAll(to, "-", "_")
 	expectedEdge := fmt.Sprintf("%s[\"%s\"] --> %s[\"%s\"]", escapedFrom, from, escapedTo, to)
 	if !strings.Contains(c.mermaidOutput, expectedEdge) {
-		return fmt.Errorf("expected mermaid output to contain %q, got:\n%s", expectedEdge, c.mermaidOutput)
+		return fmt.Errorf("expected mermaid output to contain edge %q, got:\n%s", expectedEdge, c.mermaidOutput)
 	}
 	return nil
 }
@@ -398,6 +488,14 @@ func registerPatternsSteps(ctx *godog.ScenarioContext) {
 	c := newPatternsContext()
 	ctx.Step(`^a DAG with root node "([^"]*)"$`, c.aDAGWithRootNode)
 	ctx.Step(`^a node "([^"]*)" that depends on "([^"]*)"$`, c.aNodeThatDependsOn)
+	ctx.Step(`^a node "([^"]*)" that depends on "([^"]*)" with a false condition$`, c.aNodeThatDependsOnWithFalseCondition)
+	ctx.Step(`^a DAG with a failing node "([^"]*)"$`, c.aDAGWithAFailingNode)
+	ctx.Step(`^the DAG is executed with a report$`, c.theDAGIsExecutedWithAReport)
+	ctx.Step(`^node "([^"]*)" status is "([^"]*)"$`, c.nodeStatusIs)
+	ctx.Step(`^node "([^"]*)" reports an error$`, c.nodeReportsAnError)
+	ctx.Step(`^node "([^"]*)" is not executed$`, c.nodeIsNotExecuted)
+	ctx.Step(`^the overall DAG execution succeeds$`, c.theOverallDAGExecutionSucceeds)
+	ctx.Step(`^the report records a positive execution duration$`, c.theReportRecordsAPositiveExecutionDuration)
 	ctx.Step(`^a DAG with root node "([^"]*)" that returns an error$`, c.aDAGWithRootNodeThatReturnsAnError)
 	ctx.Step(`^a DAG with independent nodes "([^"]*)" and "([^"]*)"$`, c.aDAGWithIndependentNodesAnd)
 	ctx.Step(`^the DAG is executed$`, c.theDAGIsExecuted)

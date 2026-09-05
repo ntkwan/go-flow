@@ -87,3 +87,33 @@ func ExampleDAGToDOT() {
 
 	fmt.Println(len(dot) > 0)
 }
+
+func ExampleDAGWithReport() {
+	user := flow.Node("user", func(ctx context.Context) error { return nil })
+	payment := flow.Node("payment", func(ctx context.Context) error { return nil }).After("user")
+
+	exec := flow.DAGWithReport(user, payment)
+	report, err := exec(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	for _, n := range report.Nodes {
+		fmt.Printf("%s: %s\n", n.Name, n.Status)
+	}
+}
+
+func ExampleDAG_conditional() {
+	type userContext struct {
+		context.Context
+		isPremium bool
+	}
+
+	baseTask := flow.Node("base", func(ctx *userContext) error { return nil })
+	bonusTask := flow.Node("bonus", func(ctx *userContext) error { return nil }).
+		After("base").
+		When(func(ctx *userContext) bool { return ctx.isPremium })
+
+	graph := flow.DAG(baseTask, bonusTask)
+	_ = graph(&userContext{Context: context.Background(), isPremium: false})
+}

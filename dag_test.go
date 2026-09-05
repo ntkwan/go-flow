@@ -470,6 +470,12 @@ func TestDAGN(t *testing.T) {
 		t.Fatalf("expected %v, got %v", errDepFail, err)
 	}
 
+	nSkipped := Node("skipped", func(ctx context.Context) error { return errors.New("should not run") }).When(func(ctx context.Context) bool { return false })
+	nAfterSkipped := Node("after_skipped", func(ctx context.Context) error { return nil }).After("skipped")
+	if err := DAGN(1, nSkipped, nAfterSkipped)(context.Background()); err != nil {
+		t.Fatalf("expected nil error for skipped node in DAGN, got %v", err)
+	}
+
 	ctxDepCancel, cancelDep := context.WithCancel(context.Background())
 	nSlowDep := Node("slowDep", func(ctx context.Context) error {
 		time.Sleep(50 * time.Millisecond)
