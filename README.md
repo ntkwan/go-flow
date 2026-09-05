@@ -52,20 +52,6 @@ graph LR
     end
 ```
 
-## Combinator Reference Matrix
-
-| Combinator | Syntax | Concurrency | Error Behavior | Lifecycle / Cancellation |
-|---|---|---|---|---|
-| **Sequential** | `flow.Seq(...)` / `.Then(...)` | Sequential (1) | Short-circuits on first error | Halts remaining steps |
-| **Unbounded Parallel** | `flow.Go(...)` | Concurrent ($\infty$) | Joins all errors (`errors.Join`) | Waits for all steps to finish |
-| **Bounded Parallel** | `flow.GoN(limit, ...)` | Concurrent (`limit`) | Joins all errors (`errors.Join`) | Throttles active worker goroutines |
-| **Speculative Race** | `flow.Race(...)` | Concurrent ($\infty$) | Returns on first success | Cancels remaining losing branches |
-| **Pure Function DAG** | `flow.DAGEdges(...)` | Maximal parallel | Short-circuits dependent branches | Propagates branch failure |
-| **Bounded DAG** | `flow.DAGEdgesN(limit, ...)` | Maximal parallel (`limit`) | Short-circuits dependent branches | Throttles active node workers |
-| **Named Node DAG** | `flow.DAG(...)` / `flow.DAGN(...)` | Maximal parallel | Short-circuits dependent branches | Explicit string node identifiers |
-| **Iterator Stream** | `flow.Each(...)` / `flow.Each2(...)` | Sequential | Short-circuits on first error | Halts sequence consumption |
-| **Idempotent Step** | `flow.Once(...)` | Thread-safe single-run | Caches first result | Executes at most once |
-
 ## Quick Start
 
 ### 1. Fluent Method Chaining
