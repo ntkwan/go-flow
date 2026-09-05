@@ -648,15 +648,18 @@ func TestDAGReport(t *testing.T) {
 			t.Fatalf("expected fast error in DAGN, got %v", errN)
 		}
 
+		n1Acquired := make(chan struct{})
 		n1Hold := make(chan struct{})
 		n2Waiting := make(chan struct{})
 		nContend1 := flow.Node("c1", func(ctx context.Context) error {
+			close(n1Acquired)
 			<-n1Hold
 			return errFast
 		})
 		nContend2 := flow.Node("c2", func(ctx context.Context) error {
 			return nil
 		}).When(func(ctx context.Context) bool {
+			<-n1Acquired
 			close(n2Waiting)
 			return true
 		})

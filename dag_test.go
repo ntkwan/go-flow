@@ -443,23 +443,27 @@ func TestDAGN(t *testing.T) {
 	}
 
 	ctxSemCancel, cancelSem := context.WithCancel(context.Background())
-	blocker1Release := make(chan struct{})
-	blocker2Ready := make(chan struct{})
+	n1Acquired := make(chan struct{})
+	n1Hold := make(chan struct{})
+	n2Waiting := make(chan struct{})
 	nBlocker1 := Node("blocker1", func(ctx context.Context) error {
-		<-blocker1Release
+		close(n1Acquired)
+		<-n1Hold
 		return nil
 	})
 	nBlocker2 := Node("blocker2", func(ctx context.Context) error {
 		return nil
 	}).When(func(ctx context.Context) bool {
-		close(blocker2Ready)
+		<-n1Acquired
+		close(n2Waiting)
 		return true
 	})
 	go func() {
-		<-blocker2Ready
+		<-n2Waiting
 		time.Sleep(5 * time.Millisecond)
 		cancelSem()
-		close(blocker1Release)
+		time.Sleep(5 * time.Millisecond)
+		close(n1Hold)
 	}()
 	if err := DAGN(1, nBlocker1, nBlocker2)(ctxSemCancel); !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled on semaphore acquisition, got %v", err)
@@ -949,15 +953,18 @@ func TestDAGConcurrentFailureStart(t *testing.T) {
 
 func TestDAGNContentionFailure(t *testing.T) {
 	errFail := errors.New("contended failure")
+	n1Acquired := make(chan struct{})
 	n1Hold := make(chan struct{})
 	n2Waiting := make(chan struct{})
 	n1 := Node("n1", func(ctx context.Context) error {
+		close(n1Acquired)
 		<-n1Hold
 		return errFail
 	})
 	n2 := Node("n2", func(ctx context.Context) error {
 		return nil
 	}).When(func(ctx context.Context) bool {
+		<-n1Acquired
 		close(n2Waiting)
 		return true
 	})
