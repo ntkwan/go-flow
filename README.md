@@ -317,6 +317,7 @@ graph TD
     fetch_inventory["fetch-inventory"] --> process_payment["process-payment"]
     process_payment["process-payment"] --> update_inventory["update-inventory"]
     process_payment["process-payment"] --> generate_invoice["generate-invoice"]
+    process_payment["process-payment"] --> audit_log["audit-log"]
     generate_invoice["generate-invoice"] --> notify_customer["notify-customer"]
     update_inventory["update-inventory"] --> dispatch_warehouse["dispatch-warehouse"]
 ```
