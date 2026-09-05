@@ -68,47 +68,40 @@ type dagRuntimeNode[T context.Context] struct {
 	err  error
 }
 
-func findCyclePath[T context.Context](nodes []*DAGNode[T], graph map[string][]string, inDegree map[string]int) []string {
-	visited := make(map[string]int)
-	var path []string
-	var cycle []string
-
-	var dfs func(u string) bool
-	dfs = func(u string) bool {
-		visited[u] = 1
-		path = append(path, u)
-
-		for _, v := range graph[u] {
-			if visited[v] == 1 {
-				idx := 0
-				for i, p := range path {
-					if p == v {
-						idx = i
-						break
-					}
-				}
-				cycle = append([]string{}, path[idx:]...)
-				cycle = append(cycle, v)
-				return true
-			}
-			if visited[v] == 0 {
-				if dfs(v) {
-					return true
-				}
-			}
-		}
-
-		path = path[:len(path)-1]
-		visited[u] = 2
-		return false
-	}
-
+func findCyclePath[T context.Context](nodes []*DAGNode[T], nodeMap map[string]*DAGNode[T], inDegree map[string]int) []string {
+	var start string
 	for _, n := range nodes {
-		if inDegree[n.name] > 0 && visited[n.name] == 0 && dfs(n.name) {
+		if inDegree[n.name] > 0 {
+			start = n.name
 			break
 		}
 	}
-	return cycle
+
+	pos := make(map[string]int)
+	var path []string
+	curr := start
+
+	for {
+		if idx, exists := pos[curr]; exists {
+			cycle := append([]string{}, path[idx:]...)
+			cycle = append(cycle, curr)
+			for i, j := 0, len(cycle)-1; i < j; i, j = i+1, j-1 {
+				cycle[i], cycle[j] = cycle[j], cycle[i]
+			}
+			return cycle
+		}
+
+		pos[curr] = len(path)
+		path = append(path, curr)
+
+		node := nodeMap[curr]
+		for _, dep := range node.dependsOn {
+			if inDegree[dep] > 0 {
+				curr = dep
+				break
+			}
+		}
+	}
 }
 
 func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
@@ -164,7 +157,7 @@ func validateDAG[T context.Context](nodes []*DAGNode[T]) error {
 	}
 
 	if visited != len(nodes) {
-		cycle := findCyclePath(nodes, graph, inDegree)
+		cycle := findCyclePath(nodes, nodeMap, inDegree)
 		return fmt.Errorf("%w: %s", ErrDAGCycle, strings.Join(cycle, " -> "))
 	}
 
