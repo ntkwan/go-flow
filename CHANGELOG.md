@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/ntkwan/go-flow/compare/v0.4.0...v0.5.0) (2026-09-05)
+
+
+### Features
+
+* add audit-log node to order checkout workflow and sync mermaid diagram ([58b8906](https://github.com/ntkwan/go-flow/commit/58b8906fe9e225bace26ce3c2408a3805b9a6f7f))
+* add sentinel errors, cycle path tracing, and plan validation ([fd68bd7](https://github.com/ntkwan/go-flow/commit/fd68bd70c8879e30f24dd48b1c20da3c167d365a))
+
+
+### Performance Improvements
+
+* reduce dag allocations and add benchmark regression suite ([5677dcc](https://github.com/ntkwan/go-flow/commit/5677dcc0c17e0fa7fc49e0d20022f93824205bee))
+
 ## [0.4.0](https://github.com/ntkwan/go-flow/compare/v0.3.0...v0.4.0) (2026-09-05)
 
 ### Features
