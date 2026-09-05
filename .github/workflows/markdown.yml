@@ -1,0 +1,50 @@
+name: Markdown CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.md'
+      - '.markdownlint.json'
+      - '.github/workflows/markdown.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**.md'
+      - '.markdownlint.json'
+      - '.github/workflows/markdown.yml'
+
+jobs:
+  markdown-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run markdownlint-cli2
+        uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: '**/*.md'
+          config: '.markdownlint.json'
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Broken Links with Lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --verbose --no-progress '**/*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Spelling and Typos
+        uses: crate-ci/typos@master
+        with:
+          files: 'README.md CHANGELOG.md'

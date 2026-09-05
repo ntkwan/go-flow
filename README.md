@@ -7,7 +7,9 @@
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/ntkwan/go-flow/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A high-performance, minimalist Go workflow and step execution engine designed for modern Go (1.27+). Built with generics, standard iterators, and zero external dependencies.
+A high-performance, minimalist Go structured concurrency and workflow orchestration engine designed for modern Go (1.27+). Built with generics, standard iterators, and zero external dependencies.
+
+Inspired by the structured execution model of C++26 `std::execution` ([`NVIDIA/stdexec`](https://github.com/NVIDIA/stdexec)), `go-flow` brings declarative, composable execution graphs and execution combinators to idiomatic Go. It replaces unstructured goroutine lifecycles and manual channel boilerplate with strictly scoped, cancellable, and resilient execution pipelines.
 
 ## Features
 
