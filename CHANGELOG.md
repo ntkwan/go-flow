@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/ntkwan/go-flow/compare/v0.5.0...v0.6.0) (2026-09-05)
+
+
+### Features
+
+* add contributing security guide editor config and govulncheck ([2819781](https://github.com/ntkwan/go-flow/commit/2819781901e72eef97c9881f1be65c9bb2a63664))
+* add DAG conditional execution, fluent guards, and telemetry reporting ([9c40ad9](https://github.com/ntkwan/go-flow/commit/9c40ad9825797d7b4e9cb51adfe808cc766d7392))
+
+
+### Bug Fixes
+
+* ensure deterministic 100% statement coverage in DAG cancellation tests ([8bacf3d](https://github.com/ntkwan/go-flow/commit/8bacf3d426f01e058e6eb7a649d6f68fde248b11))
+* resolve markdownlint MD031 and race in DAG test cancellation ([9179bf2](https://github.com/ntkwan/go-flow/commit/9179bf2b891dc5af6836902782d0e4d19c1fa617))
+
 ## [0.5.0](https://github.com/ntkwan/go-flow/compare/v0.4.0...v0.5.0) (2026-09-05)
 
 
