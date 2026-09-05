@@ -220,4 +220,6 @@ func main() {
 	if err := errors.Join(errUser, errInv, errVIP, errEnrich, errPayment, errInvoice, errDispatch, errNotify); err != nil {
 		panic(err)
 	}
+
+	fmt.Printf("Order %s processed successfully (Paid: %v, Dispatched: %v)\n", ctx.OrderID, ctx.Paid, ctx.Dispatched)
 }

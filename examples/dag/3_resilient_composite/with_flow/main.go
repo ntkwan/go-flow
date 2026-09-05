@@ -130,4 +130,6 @@ func main() {
 	if err := workflow(ctx); err != nil {
 		panic(err)
 	}
+
+	fmt.Printf("Order %s processed successfully (Paid: %v, Dispatched: %v)\n", ctx.OrderID, ctx.Paid, ctx.Dispatched)
 }

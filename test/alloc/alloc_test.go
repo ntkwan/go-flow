@@ -207,8 +207,8 @@ func TestAllocDAGDiamondBudget(t *testing.T) {
 		_ = step(ctx)
 	})
 
-	if allocs > 12 {
-		t.Fatalf("expected <= 12 allocs/op for Diamond DAG, got %f", allocs)
+	if allocs > 10 {
+		t.Fatalf("expected <= 10 allocs/op for Diamond DAG, got %f", allocs)
 	}
 }
 

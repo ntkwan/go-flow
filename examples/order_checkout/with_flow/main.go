@@ -128,5 +128,5 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("=== Order Checkout Flow Completed Successfully ===")
+	fmt.Printf("=== Order Checkout Flow for %s Completed Successfully ===\n", orderCtx.OrderID)
 }
