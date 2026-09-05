@@ -51,24 +51,56 @@ graph LR
 
 ## Basic Usage
 
-### Chaining with Retries and Timeouts
+### Sequential Execution (`Seq` / `.Then()`)
+
+Runs steps in sequential order and stops on the first error encountered:
 
 ```go
-validateInput := flow.Step[context.Context](validateStep)
-fetchUserData := flow.Step[context.Context](fetchUserStep)
-updateCache   := flow.Step[context.Context](updateCacheStep)
+pipeline := flow.Seq(
+    validateInput,
+    fetchUserData,
+    saveRecord,
+)
 
-pipeline := validateInput.
- Then(fetchUserData.Retry(3, 100*time.Millisecond).Timeout(2*time.Second)).
- Then(updateCache.Once()).
- Recover()
+// Or using method chaining:
+pipeline = flow.Step[context.Context](validateInput).
+    Then(fetchUserData).
+    Then(saveRecord)
 
 if err := pipeline.Exec(ctx); err != nil {
- log.Println("Pipeline failed:", err)
+    log.Println("Pipeline failed:", err)
 }
 ```
 
-### Dependency Graph (DAG)
+### Concurrent Execution (`Go` / `.Go()`)
+
+Runs steps concurrently and joins all encountered errors:
+
+```go
+fetchUserProfile := flow.Go(
+    fetchAccount,
+    fetchOrders,
+    fetchPreferences,
+)
+
+if err := fetchUserProfile.Exec(ctx); err != nil {
+    log.Println("Concurrent execution failed:", err)
+}
+```
+
+### Bounded Concurrency (`GoN` / `.GoN()`)
+
+Runs steps concurrently with a worker limit to control resource utilization:
+
+```go
+processBatch := flow.GoN(4, workerTasks...)
+
+if err := processBatch.Exec(ctx); err != nil {
+    log.Println("Batch processing failed:", err)
+}
+```
+
+### Dependency Graph (`DAG`)
 
 ```go
 validateNode  := flow.Node("validate-order", validateOrder)
