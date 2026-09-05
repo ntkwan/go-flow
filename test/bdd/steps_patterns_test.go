@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+
 	"github.com/ntkwan/go-flow"
 )
 

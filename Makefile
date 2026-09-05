@@ -35,6 +35,11 @@ uat: bdd
 
 fmt:
 	gofmt -w -s .
+	@if command -v goimports >/dev/null 2>&1; then \
+		goimports -w -local github.com/ntkwan/go-flow .; \
+	else \
+		go run golang.org/x/tools/cmd/goimports@latest -w -local github.com/ntkwan/go-flow .; \
+	fi
 
 lint:
 	golangci-lint run ./...
@@ -52,8 +57,18 @@ lint-actions:
 check:
 	@UNFORMATTED=$$(gofmt -l .); \
 	if [ -n "$$UNFORMATTED" ]; then \
-		echo "Unformatted files found:"; \
+		echo "Unformatted files found by gofmt:"; \
 		echo "$$UNFORMATTED"; \
+		exit 1; \
+	fi
+	@if command -v goimports >/dev/null 2>&1; then \
+		UNFORMATTED_IMPORTS=$$(goimports -l -local github.com/ntkwan/go-flow .); \
+	else \
+		UNFORMATTED_IMPORTS=$$(go run golang.org/x/tools/cmd/goimports@latest -l -local github.com/ntkwan/go-flow .); \
+	fi; \
+	if [ -n "$$UNFORMATTED_IMPORTS" ]; then \
+		echo "Unformatted imports found by goimports:"; \
+		echo "$$UNFORMATTED_IMPORTS"; \
 		exit 1; \
 	fi
 	go vet ./...

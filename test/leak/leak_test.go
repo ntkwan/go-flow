@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ntkwan/go-flow"
 	"go.uber.org/goleak"
+
+	"github.com/ntkwan/go-flow"
 )
 
 func TestLeakWorkflows(t *testing.T) {

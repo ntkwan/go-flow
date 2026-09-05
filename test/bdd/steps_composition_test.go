@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cucumber/godog"
+
 	"github.com/ntkwan/go-flow"
 )
 

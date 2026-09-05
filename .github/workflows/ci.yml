@@ -57,8 +57,14 @@ jobs:
         run: |
           UNFORMATTED=$(gofmt -l .)
           if [ -n "$UNFORMATTED" ]; then
-            echo "Unformatted files found:"
+            echo "Unformatted files found by gofmt:"
             echo "$UNFORMATTED"
+            exit 1
+          fi
+          UNFORMATTED_IMPORTS=$(go run golang.org/x/tools/cmd/goimports@latest -l -local github.com/ntkwan/go-flow .)
+          if [ -n "$UNFORMATTED_IMPORTS" ]; then
+            echo "Unformatted imports found by goimports:"
+            echo "$UNFORMATTED_IMPORTS"
             exit 1
           fi
 
