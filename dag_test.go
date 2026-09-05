@@ -416,6 +416,20 @@ func TestDAGN(t *testing.T) {
 	if err := DAGN(1, nSlowDep, nWaitingDep)(ctxDepCancel); err == nil {
 		t.Fatal("expected cancel error while waiting on dependency, got nil")
 	}
+
+	nC1 := Node("c1", func(ctx context.Context) error { return nil }).After("c2")
+	nC2 := Node("c2", func(ctx context.Context) error { return nil }).After("c1")
+	if err := DAGN(1, nC1, nC2)(context.Background()); err == nil {
+		t.Fatal("expected validation error in DAGN, got nil")
+	}
+
+	ctxPreCanceled, cancelPre := context.WithCancel(context.Background())
+	cancelPre()
+	nPre1 := Node("pre1", func(ctx context.Context) error { return nil })
+	nPre2 := Node("pre2", func(ctx context.Context) error { return nil })
+	if err := DAGN(1, nPre1, nPre2)(ctxPreCanceled); err == nil {
+		t.Fatal("expected cancel error with pre-canceled context in DAGN, got nil")
+	}
 }
 
 func BenchmarkDAGN(b *testing.B) {
@@ -572,4 +586,3 @@ func BenchmarkDAGEdges(b *testing.B) {
 		_ = graph(ctx)
 	}
 }
-

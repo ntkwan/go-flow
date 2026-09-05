@@ -187,10 +187,6 @@ func DAGN[T context.Context](limit int, nodes ...*DAGNode[T]) Step[T] {
 		return DAG(nodes...)
 	}
 	return func(ctx T) error {
-		if len(nodes) == 0 {
-			return nil
-		}
-
 		if err := validateDAG(nodes); err != nil {
 			return err
 		}
@@ -321,4 +317,3 @@ func DAGEdgesN[T context.Context](limit int, connections ...DAGConnection[T]) St
 	}
 	return DAGN(limit, nodes...)
 }
-
