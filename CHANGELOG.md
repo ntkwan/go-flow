@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/ntkwan/go-flow/compare/v0.3.0...v0.4.0) (2026-09-05)
+
+
+### Features
+
+* add dag mermaid export and automated diagram sync ([73a8cc8](https://github.com/ntkwan/go-flow/commit/73a8cc856f7c22ec06fc3fd47ee7c0aef489471d))
+
 ## [0.3.0](https://github.com/ntkwan/go-flow/compare/v0.2.0...v0.3.0) (2026-09-05)
 
 
