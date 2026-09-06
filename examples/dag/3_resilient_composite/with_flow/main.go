@@ -79,13 +79,6 @@ func notifyCustomer(ctx *OrderContext) error {
 }
 
 func main() {
-	orderCtx := &OrderContext{
-		Context: context.Background(),
-		UserID:  "USR-7701",
-		OrderID: "ORD-9912",
-		IsVIP:   true,
-	}
-
 	userNode := flow.Node("user",
 		flow.Step[*OrderContext](fetchUser).Retry(3, 10*time.Millisecond),
 	)
@@ -127,9 +120,17 @@ func main() {
 	}
 
 	workflow := plan.StepN(4)
-	if err := workflow.Exec(orderCtx); err != nil {
+
+	ctx := &OrderContext{
+		Context: context.Background(),
+		UserID:  "USR-7701",
+		OrderID: "ORD-9912",
+		IsVIP:   true,
+	}
+
+	if err := workflow(ctx); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Order %+v processed successfully\n", orderCtx)
+	fmt.Printf("Order %s processed successfully (Paid: %v, Dispatched: %v, Invoice: %s)\n", ctx.OrderID, ctx.Paid, ctx.Dispatched, ctx.InvoiceID)
 }
