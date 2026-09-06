@@ -94,6 +94,11 @@ func (c *resilienceContext) aRecoverGuardAttachedToTheStep() error {
 	return nil
 }
 
+func (c *resilienceContext) aRecoveryMiddlewareWrappingTheStep() error {
+	c.guardedStep = c.guardedStep.Wrap(flow.Recovery[context.Context]())
+	return nil
+}
+
 func (c *resilienceContext) theExecutionFailsWithAPanicErrorContaining(panicVal string) error {
 	if c.resilienceErr == nil {
 		return errors.New("expected panic error, got nil")
@@ -214,6 +219,7 @@ func registerResilienceSteps(ctx *godog.ScenarioContext) {
 
 	ctx.Step(`^a step that panics with "([^"]*)"$`, c.aStepThatPanicsWith)
 	ctx.Step(`^a Recover guard attached to the step$`, c.aRecoverGuardAttachedToTheStep)
+	ctx.Step(`^a Recovery middleware wrapping the step$`, c.aRecoveryMiddlewareWrappingTheStep)
 	ctx.Step(`^the execution fails with a panic error containing "([^"]*)"$`, c.theExecutionFailsWithAPanicErrorContaining)
 	ctx.Step(`^no panic crashes the process$`, c.noPanicCrashesTheProcess)
 

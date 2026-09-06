@@ -694,6 +694,35 @@ func TestStepMethodWrap(t *testing.T) {
 	}
 }
 
+func TestRecoveryMiddleware(t *testing.T) {
+	mw := Recovery[context.Context]()
+	nilWrapped := mw(nil)
+	if err := nilWrapped(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nil next step, got %v", err)
+	}
+
+	panicErrStep := mw(func(ctx context.Context) error {
+		panic(errors.New("middleware panic error"))
+	})
+	if err := panicErrStep(context.Background()); err == nil {
+		t.Fatal("expected error after middleware panic recovery, got nil")
+	}
+
+	panicStrStep := mw(func(ctx context.Context) error {
+		panic("middleware panic string")
+	})
+	if err := panicStrStep(context.Background()); err == nil {
+		t.Fatal("expected error after middleware string panic recovery, got nil")
+	}
+
+	normalStep := mw(func(ctx context.Context) error {
+		return nil
+	})
+	if err := normalStep(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
 func BenchmarkSeq(b *testing.B) {
 	step := Seq(
 		func(ctx context.Context) error { return nil },
@@ -808,6 +837,12 @@ func TestStepBranch(t *testing.T) {
 	if len(trace) != 2 || trace[0] != "init" || trace[1] != "branch_true" {
 		t.Fatalf("unexpected trace: %v", trace)
 	}
+
+	var nilStep Step[context.Context]
+	nilBranch := nilStep.Branch(func(ctx context.Context) bool { return true }, func(ctx context.Context) error { return nil }, nil)
+	if err := nilBranch(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nilStep.Branch, got %v", err)
+	}
 }
 
 func BenchmarkBranch(b *testing.B) {
@@ -915,6 +950,14 @@ func TestStepDynamic(t *testing.T) {
 	}
 	if len(trace) != 2 || trace[0] != "init" || trace[1] != "dynamic" {
 		t.Fatalf("unexpected trace: %v", trace)
+	}
+
+	var nilStep Step[context.Context]
+	nilDyn := nilStep.Dynamic(func(ctx context.Context) Step[context.Context] {
+		return func(ctx context.Context) error { return nil }
+	})
+	if err := nilDyn(context.Background()); err != nil {
+		t.Fatalf("expected nil error for nilStep.Dynamic, got %v", err)
 	}
 }
 

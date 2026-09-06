@@ -38,46 +38,51 @@ type Step[T context.Context] func(ctx T) error
 ```
 
 - **Generic over Context**: `T` satisfies `context.Context`, allowing you to use `context.Context` directly or pass custom context structs without type assertions.
-- **Composable**: Steps compose cleanly using function combinators (`Seq`, `Go`, `Race`, `DAG`) or fluent receiver methods (`.Then()`, `.Retry()`, `.Timeout()`, `.Catch()`).
-- **Resilient**: Every composite combinator cleanly handles context cancellation, deadline timeouts, error joining via `errors.Join`, and panic recovery.
+- **Composable**: Steps compose cleanly using function combinators (`Seq`, `Go`, `Race`, `DAG`) or fluent receiver methods (`.Retry()`, `.Timeout()`, `.Fallback()`, `.Wrap()`).
+- **Resilient**: Every composite combinator cleanly handles context cancellation, deadline timeouts, error joining via `errors.Join`, and panic recovery via `flow.Recovery()`.
 
 ---
 
-## 1. Method Chaining & Error Handling
+## 1. Method Decorators & Error Handling
 
-Every `Step[T]` provides receiver methods to attach timeouts, retries, fallbacks, panic recovery, error suppression, and middleware:
+Every `Step[T]` provides receiver methods to attach timeouts, retries, fallbacks, conditionals, and middleware:
 
 ```go
 validateInput := flow.Step[context.Context](validateStep)
-fetchUserData := flow.Step[context.Context](fetchUserStep)
-updateCache   := flow.Step[context.Context](updateCacheStep)
+fetchUserData := flow.Step[context.Context](fetchUserStep).
+	Retry(3, 100*time.Millisecond).
+	Timeout(2*time.Second)
+updateCache   := flow.Step[context.Context](updateCacheStep).Once()
 
-pipeline := validateInput.
- Then(fetchUserData.Retry(3, 100*time.Millisecond).Timeout(2*time.Second)).
- Then(updateCache.Once()).
- Recover()
+pipeline := flow.Seq(
+	validateInput,
+	fetchUserData,
+	updateCache,
+).Wrap(flow.Recovery[context.Context]())
 
 if err := pipeline.Exec(ctx); err != nil {
- log.Println("Pipeline failed:", err)
+	log.Println("Pipeline failed:", err)
 }
 ```
 
-### Available Methods
+### Available Methods & Middleware
 
-- `.Then(next Step[T]) Step[T]`: Chains steps sequentially.
-- `.Go(steps ...Step[T]) Step[T]`: Runs subsequent steps concurrently.
-- `.GoN(limit int, steps ...Step[T]) Step[T]`: Runs steps with bounded concurrency.
-- `.Race(steps ...Step[T]) Step[T]`: Races against other steps, returning first success.
+- `flow.Recovery() Middleware[T]`: Middleware that catches panics and converts them into standard Go errors.
 - `.Timeout(d time.Duration) Step[T]`: Enforces maximum execution duration.
-- `.Retry(attempts int, delay time.Duration) Step[T]`: Retries on failure up to $N$ attempts.
+- `.Retry(attempts int, delay time.Duration) Step[T]`: Retries on failure up to $N$ attempts with backoff delay.
 - `.Fallback(fallback Step[T]) Step[T]`: Runs fallback step if primary step fails.
-- `.Catch(handler func(error) error) Step[T]`: Transforms or suppresses errors.
-- `.Recover() Step[T]`: Recovers panics into structured Go errors.
 - `.Once() Step[T]`: Guarantees the step executes only once per lifetime.
 - `.When(pred func(T) bool) Step[T]`: Executes step only if predicate is true.
 - `.Unless(pred func(T) bool) Step[T]`: Executes step only if predicate is false.
 - `.Branch(pred func(T) bool, onTrue, onFalse Step[T]) Step[T]`: Dynamic branching.
-- `.Wrap(middleware func(Step[T]) Step[T]) Step[T]`: Applies middleware.
+- `.Dynamic(fn func(T) Step[T]) Step[T]`: Evaluates runtime context to choose next step.
+- `.Wrap(middlewares ...Middleware[T]) Step[T]`: Applies onion-style middleware.
+- `.Go(steps ...Step[T]) Step[T]`: Runs subsequent steps concurrently.
+- `.GoN(limit int, steps ...Step[T]) Step[T]`: Runs steps with bounded concurrency.
+- `.Race(steps ...Step[T]) Step[T]`: Races against other steps, returning first success.
+- `.Then(next Step[T]) Step[T]`: *(Deprecated: Use `flow.Seq()` instead)*.
+- `.Catch(handler func(T, error) error) Step[T]`: *(Deprecated: Use `.Fallback()` or `.Wrap()`)*.
+- `.Recover() Step[T]`: *(Deprecated: Use `flow.Recovery()` middleware with `.Wrap()`)*.
 
 ---
 

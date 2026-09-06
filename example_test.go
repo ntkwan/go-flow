@@ -250,3 +250,13 @@ func ExampleStep_Wrap() {
 	wrapped := base.Wrap(loggingMiddleware)
 	_ = wrapped.Exec(context.Background())
 }
+
+func ExampleRecovery() {
+	riskyStep := flow.Step[context.Context](func(ctx context.Context) error {
+		panic("database connection lost")
+	})
+
+	guarded := riskyStep.Wrap(flow.Recovery[context.Context]())
+	err := guarded.Exec(context.Background())
+	fmt.Println("Recovered from panic:", err != nil)
+}

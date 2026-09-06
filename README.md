@@ -63,7 +63,7 @@ graph LR
 
 ## Basic Usage
 
-### Sequential Execution (`Seq` / `.Then()`)
+### Sequential Execution (`Seq`)
 
 Runs steps in sequential order and stops on the first error encountered:
 
@@ -73,11 +73,6 @@ pipeline := flow.Seq(
     fetchUserData,
     saveRecord,
 )
-
-// Or using method chaining:
-pipeline = flow.Step[context.Context](validateInput).
-    Then(fetchUserData).
-    Then(saveRecord)
 
 if err := pipeline.Exec(ctx); err != nil {
     log.Println("Pipeline failed:", err)
@@ -127,19 +122,19 @@ notifyNode    := flow.Node("notify-customer", notifyCustomer).After("generate-in
 dispatchNode  := flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory")
 
 plan := flow.NewDAG(
- validateNode, userNode, inventoryNode, discountNode, paymentNode,
- updateInvNode, invoiceNode, auditNode, notifyNode, dispatchNode,
+	validateNode, userNode, inventoryNode, discountNode, paymentNode,
+	updateInvNode, invoiceNode, auditNode, notifyNode, dispatchNode,
 )
 
 // Validate graph topology before execution
 if err := plan.Validate(); err != nil {
- log.Fatal(err)
+	log.Fatal(err)
 }
 
 // Execute as Step[T]
 workflow := plan.Step()
 if err := workflow(ctx); err != nil {
- log.Println("Workflow failed:", err)
+	log.Println("Workflow failed:", err)
 }
 ```
 
@@ -165,7 +160,7 @@ graph TD
 
 | Function / Method | Description | Guide & Examples |
 | :--- | :--- | :--- |
-| `Seq` / `.Then()` | Runs steps in sequential order; stops on first error. | [Guide](GETTING_STARTED.md#2-sequential-execution-seq) · [Example](examples/seq/with_flow/main.go) |
+| `Seq` | Runs steps in sequential order; stops on first error. | [Guide](GETTING_STARTED.md#2-sequential-execution-seq) · [Example](examples/seq/with_flow/main.go) |
 | `Go` / `.Go()` | Runs steps concurrently; joins all errors. | [Guide](GETTING_STARTED.md#3-concurrent-execution-go-and-gon) · [Example](examples/go/with_flow/main.go) |
 | `GoN` / `.GoN()` | Runs steps concurrently with a worker limit. | [Guide](GETTING_STARTED.md#3-concurrent-execution-go-and-gon) · [Example](examples/gon/with_flow/main.go) |
 | `Race` / `.Race()` | Runs steps concurrently; returns on first success and cancels losers. | [Guide](GETTING_STARTED.md#4-speculative-racing-race) · [Example](examples/race/with_flow/main.go) |
@@ -176,11 +171,11 @@ graph TD
 | `Pipe` / `PipeSeq` | Transforms typed values across steps and iterators. | [Guide](GETTING_STARTED.md#6-functional-piping-pipe-pipeseq) · [Example](examples/pipe/with_flow/main.go) |
 | `Each` / `Chunk` | Iterates over Go 1.23+ `iter.Seq` sequences or batches slices. | [Guide](GETTING_STARTED.md#7-iterators--batching-each-chunk) · [Example](examples/each/with_flow/main.go) |
 | `Once` / `.Once()` | Ensures a step executes at most once across parallel branches. | [Guide](GETTING_STARTED.md#8-idempotent-execution-once) · [Example](examples/once/with_flow/main.go) |
+| `Recovery` | Middleware converting panics into standard Go errors. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/wrap/with_flow/main.go) |
 | `.Retry()` | Retries a failing step up to $N$ attempts with backoff delay. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/retry/with_flow/main.go) |
 | `.Timeout()` | Applies a timeout deadline to step execution. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/timeout/with_flow/main.go) |
 | `.Fallback()` | Runs an alternate step if the primary step fails. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/fallback/with_flow/main.go) |
-| `.Catch()` | Handles or transforms step errors. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/wrap/with_flow/main.go) |
-| `.Recover()` | Catches panics and converts them into standard Go errors. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/wrap/with_flow/main.go) |
+| `.Wrap()` | Attaches onion middleware (e.g. `Recovery()`, logging). | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/wrap/with_flow/main.go) |
 
 ---
 

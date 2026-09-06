@@ -118,14 +118,18 @@ func (n *DAGNode[T]) WithRetry(attempts int, delay ...time.Duration) *DAGNode[T]
 }
 
 // WithRecover executes the WithRecover operation.
+//
+// Deprecated: Use flow.Recovery() middleware with Step.Wrap instead.
 func (n *DAGNode[T]) WithRecover() *DAGNode[T] {
 	if n.step != nil {
-		n.step = n.step.Recover()
+		n.step = n.step.Wrap(Recovery[T]())
 	}
 	return n
 }
 
 // WithCatch executes the WithCatch operation.
+//
+// Deprecated: Use WithFallback, Step.Wrap, or handle errors within the step function directly.
 func (n *DAGNode[T]) WithCatch(handler func(ctx T, err error) error) *DAGNode[T] {
 	if n.step != nil {
 		n.step = n.step.Catch(handler)
@@ -620,6 +624,8 @@ func (p *DAGPlan[T]) ToMermaid() (string, error) {
 }
 
 // ToDOT executes the ToDOT operation.
+//
+// Deprecated: Use ToMermaid instead.
 func (p *DAGPlan[T]) ToDOT() (string, error) {
 	if p == nil {
 		return "digraph DAG {\n}", nil
@@ -677,6 +683,8 @@ func DAGToMermaid[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 }
 
 // DAGToDOT performs the DAGToDOT operation.
+//
+// Deprecated: Use DAGToMermaid instead.
 func DAGToDOT[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 	if len(nodes) == 0 {
 		return "digraph DAG {\n}", nil
@@ -720,6 +728,8 @@ func DAGEdgesToMermaid[T context.Context](connections ...DAGConnection[T]) (stri
 }
 
 // DAGEdgesToDOT performs the DAGEdgesToDOT operation.
+//
+// Deprecated: Use DAGEdgesToMermaid instead.
 func DAGEdgesToDOT[T context.Context](connections ...DAGConnection[T]) (string, error) {
 	if len(connections) == 0 {
 		return "digraph DAG {\n}", nil

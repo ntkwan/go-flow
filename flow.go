@@ -93,6 +93,8 @@ func (s Step[T]) Exec(ctx T) error {
 }
 
 // Then executes the Then operation.
+//
+// Deprecated: Use flow.Seq(s, steps...) instead.
 func (s Step[T]) Then(steps ...Step[T]) Step[T] {
 	all := make([]Step[T], 0, 1+len(steps))
 	if s != nil {
@@ -217,6 +219,8 @@ func (s Step[T]) Fallback(fallback Step[T]) Step[T] {
 }
 
 // Catch executes the Catch operation.
+//
+// Deprecated: Use Step.Fallback, Step.Wrap, or handle errors within the step function directly.
 func (s Step[T]) Catch(handler func(ctx T, err error) error) Step[T] {
 	return func(ctx T) error {
 		if s == nil {
@@ -233,22 +237,10 @@ func (s Step[T]) Catch(handler func(ctx T, err error) error) Step[T] {
 }
 
 // Recover executes the Recover operation.
+//
+// Deprecated: Use flow.Recovery() middleware with Step.Wrap instead.
 func (s Step[T]) Recover() Step[T] {
-	return func(ctx T) (err error) {
-		if s == nil {
-			return nil
-		}
-		defer func() {
-			if r := recover(); r != nil {
-				if e, ok := r.(error); ok {
-					err = fmt.Errorf("panic recovered: %w", e)
-				} else {
-					err = fmt.Errorf("panic recovered: %v", r)
-				}
-			}
-		}()
-		return s(ctx)
-	}
+	return s.Wrap(Recovery[T]())
 }
 
 // When executes the When operation.
@@ -273,16 +265,43 @@ func (s Step[T]) Unless(predicate func(ctx T) bool) Step[T] {
 
 // Branch executes the Branch operation.
 func (s Step[T]) Branch(condition func(ctx T) bool, ifBranch, elseBranch Step[T]) Step[T] {
-	return s.Then(Branch(condition, ifBranch, elseBranch))
+	if s == nil {
+		return Branch(condition, ifBranch, elseBranch)
+	}
+	return Seq(s, Branch(condition, ifBranch, elseBranch))
 }
 
 // Dynamic executes the Dynamic operation.
 func (s Step[T]) Dynamic(fn func(ctx T) Step[T]) Step[T] {
-	return s.Then(Dynamic(fn))
+	if s == nil {
+		return Dynamic(fn)
+	}
+	return Seq(s, Dynamic(fn))
 }
 
 // Middleware represents Middleware.
 type Middleware[T context.Context] func(next Step[T]) Step[T]
+
+// Recovery performs the Recovery operation.
+func Recovery[T context.Context]() Middleware[T] {
+	return func(next Step[T]) Step[T] {
+		return func(ctx T) (err error) {
+			if next == nil {
+				return nil
+			}
+			defer func() {
+				if r := recover(); r != nil {
+					if e, ok := r.(error); ok {
+						err = fmt.Errorf("panic recovered: %w", e)
+					} else {
+						err = fmt.Errorf("panic recovered: %v", r)
+					}
+				}
+			}()
+			return next(ctx)
+		}
+	}
+}
 
 // Wrap executes the Wrap operation.
 func (s Step[T]) Wrap(middlewares ...Middleware[T]) Step[T] {
