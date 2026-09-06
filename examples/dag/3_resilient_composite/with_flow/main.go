@@ -79,7 +79,7 @@ func notifyCustomer(ctx *OrderContext) error {
 }
 
 func main() {
-	ctx := &OrderContext{
+	orderCtx := &OrderContext{
 		Context: context.Background(),
 		UserID:  "USR-7701",
 		OrderID: "ORD-9912",
@@ -127,9 +127,9 @@ func main() {
 	}
 
 	workflow := plan.StepN(4)
-	if err := workflow(ctx); err != nil {
+	if err := workflow(orderCtx); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Order %s processed successfully (Paid: %v, Dispatched: %v)\n", ctx.OrderID, ctx.Paid, ctx.Dispatched)
+	fmt.Printf("Order %s processed successfully (Paid: %v, Dispatched: %v)\n", orderCtx.OrderID, orderCtx.Paid, orderCtx.Dispatched)
 }
