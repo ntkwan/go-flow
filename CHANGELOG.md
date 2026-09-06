@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.0](https://github.com/ntkwan/go-flow/compare/v0.6.0...v0.7.0) (2026-09-06)
+
+
+### Features
+
+* add dynamic and lazy step combinator ([64bdfb8](https://github.com/ntkwan/go-flow/commit/64bdfb8d200df0953ec0b9424d783ceeaff965d2))
+* add godocs ([3fa40f8](https://github.com/ntkwan/go-flow/commit/3fa40f87313a4759e85587a3033cd9d32a5cbbfa))
+* optimize concurrency worker pool and event-driven dag engine ([cde48ba](https://github.com/ntkwan/go-flow/commit/cde48ba8c91d60b64374fc8e706ecb3fbfed2d87))
+
+
+### Bug Fixes
+
+* remove redundant post-step failure checks in dag runners ([83e3f27](https://github.com/ntkwan/go-flow/commit/83e3f2790a5425c741e231ebdc534a75d9768fe9))
+* **test:** adjust dag diamond allocs budget for go 1.24 compatibility ([9f0e1e3](https://github.com/ntkwan/go-flow/commit/9f0e1e3a45a6233d76f63ffdd6a2f2014f37d570))
+
+
+### Performance Improvements
+
+* **dag:** fuse in-degree and error slices and address code scanning alerts ([02d6cc3](https://github.com/ntkwan/go-flow/commit/02d6cc352fe132b9ea0fa246f68886b4daf3c217))
+
 ## [0.6.0](https://github.com/ntkwan/go-flow/compare/v0.5.0...v0.6.0) (2026-09-05)
 
 
