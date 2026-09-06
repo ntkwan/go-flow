@@ -127,9 +127,9 @@ func main() {
 	}
 
 	workflow := plan.StepN(4)
-	if err := workflow(orderCtx); err != nil {
+	if err := workflow.Exec(orderCtx); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Order %s processed successfully (Paid: %v, Dispatched: %v)\n", orderCtx.OrderID, orderCtx.Paid, orderCtx.Dispatched)
+	fmt.Printf("Order %+v processed successfully\n", orderCtx)
 }
