@@ -80,9 +80,6 @@ if err := pipeline.Exec(ctx); err != nil {
 - `.Go(steps ...Step[T]) Step[T]`: Runs subsequent steps concurrently.
 - `.GoN(limit int, steps ...Step[T]) Step[T]`: Runs steps with bounded concurrency.
 - `.Race(steps ...Step[T]) Step[T]`: Races against other steps, returning first success.
-- `.Then(next Step[T]) Step[T]`: *(Deprecated: Use `flow.Seq()` instead)*.
-- `.Catch(handler func(T, error) error) Step[T]`: *(Deprecated: Use `.Fallback()` or `.Wrap()`)*.
-- `.Recover() Step[T]`: *(Deprecated: Use `flow.Recovery()` middleware with `.Wrap()`)*.
 
 ---
 
@@ -403,10 +400,9 @@ enrichNode := flow.Node("enrich-profile",
 ).After("fetch-user")
 
 // Protected payment node with secondary fallback gateway
-paymentNode := flow.Node("process-payment", primaryGateway).
+paymentNode := flow.Node("process-payment", flow.Step[context.Context](primaryGateway).Wrap(flow.Recovery[context.Context]())).
     After("vip-discount", "enrich-profile").
-    WithFallback(secondaryGateway).
-    WithRecover()
+    WithFallback(secondaryGateway)
 ```
 
 ### 7. DAG Execution Reports & Observability
@@ -431,7 +427,7 @@ skippedNodes := report.Skipped()
 failedNodes := report.Failed()
 ```
 
-### 8. Visual Graph Export (Mermaid & Graphviz DOT)
+### 8. Visual Graph Export (Mermaid)
 
 Generate diagrams directly from Go code:
 
@@ -440,9 +436,6 @@ plan := flow.NewDAG(userNode, cartNode, paymentNode, receiptNode)
 
 // Export to Mermaid markdown syntax
 mermaid, err := plan.ToMermaid()
-
-// Export to Graphviz DOT syntax
-dot, err := plan.ToDOT()
 
 // Export from pure function edges
 edgeMermaid, err := flow.DAGEdgesToMermaid(

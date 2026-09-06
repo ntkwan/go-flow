@@ -132,31 +132,16 @@ func TestDAGNodeFluentDecorators(t *testing.T) {
 		}
 	})
 
-	t.Run("WithRecover", func(t *testing.T) {
-		panickyStep := func(ctx *customContext) error {
+	t.Run("Recovery middleware on DAG node", func(t *testing.T) {
+		panickyStep := flow.Step[*customContext](func(ctx *customContext) error {
 			panic("boom")
-		}
-		node := flow.Node("panicky", panickyStep).WithRecover()
+		}).Wrap(flow.Recovery[*customContext]())
+		node := flow.Node("panicky", panickyStep)
 		dag := flow.DAG(node)
 		ctx := &customContext{Context: context.Background()}
 		err := dag(ctx)
 		if err == nil || !strings.Contains(err.Error(), "panic recovered") {
 			t.Fatalf("expected panic error, got: %v", err)
-		}
-	})
-
-	t.Run("WithCatch", func(t *testing.T) {
-		failingStep := func(ctx *customContext) error {
-			return errors.New("raw error")
-		}
-		node := flow.Node("failing", failingStep).WithCatch(func(ctx *customContext, err error) error {
-			return errors.New("handled error")
-		})
-		dag := flow.DAG(node)
-		ctx := &customContext{Context: context.Background()}
-		err := dag(ctx)
-		if err == nil || err.Error() != "handled error" {
-			t.Fatalf("expected handled error, got: %v", err)
 		}
 	})
 
@@ -183,8 +168,6 @@ func TestDAGNodeFluentDecorators(t *testing.T) {
 		node := flow.Node[context.Context]("nil", nil).
 			WithTimeout(time.Second).
 			WithRetry(2).
-			WithRecover().
-			WithCatch(nil).
 			WithFallback(nil)
 		dag := flow.DAG(node)
 		if err := dag(context.Background()); err != nil {

@@ -39,46 +39,8 @@ func newResilienceContext() *resilienceContext {
 	return &resilienceContext{}
 }
 
-func (c *resilienceContext) aStepThatFailsWith(errMsg string) error {
-	c.guardedStep = flow.Step[context.Context](func(ctx context.Context) error {
-		return errors.New(errMsg)
-	})
-	return nil
-}
-
-func (c *resilienceContext) aCatchHandlerThatSuppressesTheError() error {
-	c.guardedStep = c.guardedStep.Catch(func(ctx context.Context, err error) error {
-		return nil
-	})
-	return nil
-}
-
-func (c *resilienceContext) aCatchHandlerThatTransformsItTo(newErrMsg string) error {
-	c.guardedStep = c.guardedStep.Catch(func(ctx context.Context, err error) error {
-		return errors.New(newErrMsg)
-	})
-	return nil
-}
-
 func (c *resilienceContext) theGuardedStepIsExecuted() error {
 	c.resilienceErr = c.guardedStep(context.Background())
-	return nil
-}
-
-func (c *resilienceContext) theGuardedExecutionSucceeds() error {
-	if c.resilienceErr != nil {
-		return fmt.Errorf("expected success, got: %w", c.resilienceErr)
-	}
-	return nil
-}
-
-func (c *resilienceContext) theExecutionFailsWith(errMsg string) error {
-	if c.resilienceErr == nil {
-		return errors.New("expected error, got nil")
-	}
-	if !strings.Contains(c.resilienceErr.Error(), errMsg) {
-		return fmt.Errorf("expected error containing %q, got: %w", errMsg, c.resilienceErr)
-	}
 	return nil
 }
 
@@ -86,11 +48,6 @@ func (c *resilienceContext) aStepThatPanicsWith(panicVal string) error {
 	c.guardedStep = flow.Step[context.Context](func(ctx context.Context) error {
 		panic(panicVal)
 	})
-	return nil
-}
-
-func (c *resilienceContext) aRecoverGuardAttachedToTheStep() error {
-	c.guardedStep = c.guardedStep.Recover()
 	return nil
 }
 
@@ -210,15 +167,9 @@ func (c *resilienceContext) theStepReturnsDeadlineExceededError() error {
 func registerResilienceSteps(ctx *godog.ScenarioContext) {
 	c := newResilienceContext()
 
-	ctx.Step(`^a step that fails with "([^"]*)"$`, c.aStepThatFailsWith)
-	ctx.Step(`^a Catch handler that suppresses the error$`, c.aCatchHandlerThatSuppressesTheError)
-	ctx.Step(`^a Catch handler that transforms it to "([^"]*)"$`, c.aCatchHandlerThatTransformsItTo)
 	ctx.Step(`^the guarded step is executed$`, c.theGuardedStepIsExecuted)
-	ctx.Step(`^the guarded execution succeeds$`, c.theGuardedExecutionSucceeds)
-	ctx.Step(`^the execution fails with "([^"]*)"$`, c.theExecutionFailsWith)
 
 	ctx.Step(`^a step that panics with "([^"]*)"$`, c.aStepThatPanicsWith)
-	ctx.Step(`^a Recover guard attached to the step$`, c.aRecoverGuardAttachedToTheStep)
 	ctx.Step(`^a Recovery middleware wrapping the step$`, c.aRecoveryMiddlewareWrappingTheStep)
 	ctx.Step(`^the execution fails with a panic error containing "([^"]*)"$`, c.theExecutionFailsWithAPanicErrorContaining)
 	ctx.Step(`^no panic crashes the process$`, c.noPanicCrashesTheProcess)

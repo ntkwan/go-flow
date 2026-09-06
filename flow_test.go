@@ -208,40 +208,6 @@ func TestStepMethodExec(t *testing.T) {
 	}
 }
 
-func TestStepMethodThen(t *testing.T) {
-	var calls []string
-	s1 := Step[context.Context](func(ctx context.Context) error {
-		calls = append(calls, "s1")
-		return nil
-	})
-	s2 := Step[context.Context](func(ctx context.Context) error {
-		calls = append(calls, "s2")
-		return nil
-	})
-	s3 := Step[context.Context](func(ctx context.Context) error {
-		calls = append(calls, "s3")
-		return nil
-	})
-
-	chained := s1.Then(s2, s3)
-	if err := chained(context.Background()); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if len(calls) != 3 || calls[0] != "s1" || calls[1] != "s2" || calls[2] != "s3" {
-		t.Fatalf("expected [s1 s2 s3], got %v", calls)
-	}
-
-	calls = nil
-	var nilStep Step[context.Context]
-	chainedNil := nilStep.Then(s1, s2)
-	if err := chainedNil(context.Background()); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if len(calls) != 2 || calls[0] != "s1" || calls[1] != "s2" {
-		t.Fatalf("expected [s1 s2], got %v", calls)
-	}
-}
-
 func TestStepMethodGo(t *testing.T) {
 	var count atomic.Int32
 	s1 := Step[context.Context](func(ctx context.Context) error {
@@ -522,76 +488,6 @@ func TestStepMethodFallback(t *testing.T) {
 
 	if err := failStepNoFallback(context.Background()); !errors.Is(err, errPrimary) {
 		t.Fatalf("expected primary error, got %v", err)
-	}
-}
-
-func TestStepMethodCatch(t *testing.T) {
-	var nilStep Step[context.Context]
-	if err := nilStep.Catch(nil)(context.Background()); err != nil {
-		t.Fatalf("expected nil error for nil step, got %v", err)
-	}
-
-	successStep := Step[context.Context](func(ctx context.Context) error {
-		return nil
-	}).Catch(func(ctx context.Context, err error) error {
-		return errors.New("should not happen")
-	})
-	if err := successStep(context.Background()); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	errOrig := errors.New("original error")
-	errTransformed := errors.New("transformed error")
-
-	failStep := Step[context.Context](func(ctx context.Context) error {
-		return errOrig
-	}).Catch(func(ctx context.Context, err error) error {
-		if errors.Is(err, errOrig) {
-			return errTransformed
-		}
-		return err
-	})
-
-	if err := failStep(context.Background()); !errors.Is(err, errTransformed) {
-		t.Fatalf("expected %v, got %v", errTransformed, err)
-	}
-
-	failStepNilHandler := Step[context.Context](func(ctx context.Context) error {
-		return errOrig
-	}).Catch(nil)
-	if err := failStepNilHandler(context.Background()); !errors.Is(err, errOrig) {
-		t.Fatalf("expected %v, got %v", errOrig, err)
-	}
-}
-
-func TestStepMethodRecover(t *testing.T) {
-	var nilStep Step[context.Context]
-	if err := nilStep.Recover()(context.Background()); err != nil {
-		t.Fatalf("expected nil error for nil step, got %v", err)
-	}
-
-	panicErrStep := Step[context.Context](func(ctx context.Context) error {
-		panic(errors.New("panic error"))
-	}).Recover()
-
-	err := panicErrStep(context.Background())
-	if err == nil {
-		t.Fatal("expected error after panic recovery, got nil")
-	}
-
-	panicStrStep := Step[context.Context](func(ctx context.Context) error {
-		panic("panic string")
-	}).Recover()
-
-	if err := panicStrStep(context.Background()); err == nil {
-		t.Fatal("expected error after string panic recovery, got nil")
-	}
-
-	normalStep := Step[context.Context](func(ctx context.Context) error {
-		return nil
-	}).Recover()
-	if err := normalStep(context.Background()); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
 	}
 }
 

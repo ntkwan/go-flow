@@ -76,18 +76,6 @@ func ExampleDAGToMermaid() {
 	fmt.Println(len(mermaid) > 0)
 }
 
-func ExampleDAGToDOT() {
-	user := flow.Node("user", func(ctx context.Context) error { return nil })
-	payment := flow.Node("payment", func(ctx context.Context) error { return nil }).After("user")
-
-	dot, err := flow.DAGToDOT(user, payment)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(len(dot) > 0)
-}
-
 func ExampleDAGWithReport() {
 	user := flow.Node("user", func(ctx context.Context) error { return nil })
 	payment := flow.Node("payment", func(ctx context.Context) error { return nil }).After("user")

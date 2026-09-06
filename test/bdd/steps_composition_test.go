@@ -140,27 +140,6 @@ func (c *compositionContext) aPrimaryStepThatSucceeds() error {
 	return nil
 }
 
-func (c *compositionContext) aChainedStepAttachedWithThen() error {
-	next := flow.Step[context.Context](func(ctx context.Context) error {
-		c.chainedExecuted = true
-		return nil
-	})
-	c.chainedStep = c.chainedStep.Then(next)
-	return nil
-}
-
-func (c *compositionContext) theChainedStepIsExecuted() error {
-	c.lastErr = c.chainedStep(context.Background())
-	return nil
-}
-
-func (c *compositionContext) bothStepsExecuteInSequence() error {
-	if !c.primaryExecuted || !c.chainedExecuted {
-		return fmt.Errorf("expected both steps executed, primary: %v, chained: %v", c.primaryExecuted, c.chainedExecuted)
-	}
-	return nil
-}
-
 func (c *compositionContext) theChainedExecutionSucceeds() error {
 	if c.lastErr != nil {
 		return fmt.Errorf("expected success, got: %w", c.lastErr)
@@ -538,9 +517,6 @@ func registerCompositionSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the sequential pipeline fails with "([^"]*)"$`, c.theSequentialPipelineFailsWith)
 
 	ctx.Step(`^a primary step that succeeds$`, c.aPrimaryStepThatSucceeds)
-	ctx.Step(`^a chained step attached with Then$`, c.aChainedStepAttachedWithThen)
-	ctx.Step(`^the chained step is executed$`, c.theChainedStepIsExecuted)
-	ctx.Step(`^both steps execute in sequence$`, c.bothStepsExecuteInSequence)
 	ctx.Step(`^the chained execution succeeds$`, c.theChainedExecutionSucceeds)
 
 	ctx.Step(`^(\d+) concurrent steps writing their partition keys to context$`, c.concurrentStepsWritingTheirPartitionKeysToContext)

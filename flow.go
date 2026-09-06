@@ -92,18 +92,6 @@ func (s Step[T]) Exec(ctx T) error {
 	return s(ctx)
 }
 
-// Then executes the Then operation.
-//
-// Deprecated: Use flow.Seq(s, steps...) instead.
-func (s Step[T]) Then(steps ...Step[T]) Step[T] {
-	all := make([]Step[T], 0, 1+len(steps))
-	if s != nil {
-		all = append(all, s)
-	}
-	all = append(all, steps...)
-	return Seq(all...)
-}
-
 // Go executes the Go operation.
 func (s Step[T]) Go(steps ...Step[T]) Step[T] {
 	all := make([]Step[T], 0, 1+len(steps))
@@ -216,31 +204,6 @@ func (s Step[T]) Fallback(fallback Step[T]) Step[T] {
 		}
 		return nil
 	}
-}
-
-// Catch executes the Catch operation.
-//
-// Deprecated: Use Step.Fallback, Step.Wrap, or handle errors within the step function directly.
-func (s Step[T]) Catch(handler func(ctx T, err error) error) Step[T] {
-	return func(ctx T) error {
-		if s == nil {
-			return nil
-		}
-		if err := s(ctx); err != nil {
-			if handler != nil {
-				return handler(ctx, err)
-			}
-			return err
-		}
-		return nil
-	}
-}
-
-// Recover executes the Recover operation.
-//
-// Deprecated: Use flow.Recovery() middleware with Step.Wrap instead.
-func (s Step[T]) Recover() Step[T] {
-	return s.Wrap(Recovery[T]())
 }
 
 // When executes the When operation.

@@ -205,9 +205,9 @@ func TestChaosPanicContainment(t *testing.T) {
 		return nil
 	})
 
-	fraudCheck := flow.Node("fraud_check", func(c *CheckoutContext) error {
+	fraudCheck := flow.Node("fraud_check", flow.Step[*CheckoutContext](func(c *CheckoutContext) error {
 		panic("nil pointer dereference in fraud scoring model")
-	}).After("validate_cart").WithRecover()
+	}).Wrap(flow.Recovery[*CheckoutContext]())).After("validate_cart")
 
 	dag := flow.DAGWithReport(validateCart, fraudCheck)
 	report, err := dag(ctx)
@@ -302,13 +302,13 @@ func TestChaosHighConcurrencyBatch(t *testing.T) {
 				return nil
 			}).After("validate_cart").WithTimeout(10 * time.Millisecond)
 
-			fraudCheck := flow.Node("fraud_check", func(c *CheckoutContext) error {
+			fraudCheck := flow.Node("fraud_check", flow.Step[*CheckoutContext](func(c *CheckoutContext) error {
 				if faultType == 2 {
 					panic("intermittent fraud service panic")
 				}
 				c.FraudScore = 15
 				return nil
-			}).After("validate_cart").WithRecover()
+			}).Wrap(flow.Recovery[*CheckoutContext]())).After("validate_cart")
 
 			secondaryPayment := func(c *CheckoutContext) error {
 				c.PaymentCompleted = true

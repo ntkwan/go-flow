@@ -117,26 +117,6 @@ func (n *DAGNode[T]) WithRetry(attempts int, delay ...time.Duration) *DAGNode[T]
 	return n
 }
 
-// WithRecover executes the WithRecover operation.
-//
-// Deprecated: Use flow.Recovery() middleware with Step.Wrap instead.
-func (n *DAGNode[T]) WithRecover() *DAGNode[T] {
-	if n.step != nil {
-		n.step = n.step.Wrap(Recovery[T]())
-	}
-	return n
-}
-
-// WithCatch executes the WithCatch operation.
-//
-// Deprecated: Use WithFallback, Step.Wrap, or handle errors within the step function directly.
-func (n *DAGNode[T]) WithCatch(handler func(ctx T, err error) error) *DAGNode[T] {
-	if n.step != nil {
-		n.step = n.step.Catch(handler)
-	}
-	return n
-}
-
 // WithFallback executes the WithFallback operation.
 func (n *DAGNode[T]) WithFallback(fallback Step[T]) *DAGNode[T] {
 	if n.step != nil {
@@ -623,16 +603,6 @@ func (p *DAGPlan[T]) ToMermaid() (string, error) {
 	return DAGToMermaid(p.nodes...)
 }
 
-// ToDOT executes the ToDOT operation.
-//
-// Deprecated: Use ToMermaid instead.
-func (p *DAGPlan[T]) ToDOT() (string, error) {
-	if p == nil {
-		return "digraph DAG {\n}", nil
-	}
-	return DAGToDOT(p.nodes...)
-}
-
 func escapeMermaidID(name string) string {
 	var sb strings.Builder
 	for _, r := range name {
@@ -682,39 +652,6 @@ func DAGToMermaid[T context.Context](nodes ...*DAGNode[T]) (string, error) {
 	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
-// DAGToDOT performs the DAGToDOT operation.
-//
-// Deprecated: Use DAGToMermaid instead.
-func DAGToDOT[T context.Context](nodes ...*DAGNode[T]) (string, error) {
-	if len(nodes) == 0 {
-		return "digraph DAG {\n}", nil
-	}
-	if err := validateDAG(nodes); err != nil {
-		return "", err
-	}
-
-	var sb strings.Builder
-	sb.WriteString("digraph DAG {\n")
-
-	hasEdge := make(map[string]bool, len(nodes))
-	for _, n := range nodes {
-		for _, dep := range n.dependsOn {
-			hasEdge[dep] = true
-			hasEdge[n.name] = true
-			fmt.Fprintf(&sb, "  \"%s\" -> \"%s\";\n", dep, n.name)
-		}
-	}
-
-	for _, n := range nodes {
-		if !hasEdge[n.name] {
-			fmt.Fprintf(&sb, "  \"%s\";\n", n.name)
-		}
-	}
-
-	sb.WriteString("}")
-	return sb.String(), nil
-}
-
 // DAGEdgesToMermaid performs the DAGEdgesToMermaid operation.
 func DAGEdgesToMermaid[T context.Context](connections ...DAGConnection[T]) (string, error) {
 	if len(connections) == 0 {
@@ -725,18 +662,4 @@ func DAGEdgesToMermaid[T context.Context](connections ...DAGConnection[T]) (stri
 		return "", err
 	}
 	return DAGToMermaid(nodes...)
-}
-
-// DAGEdgesToDOT performs the DAGEdgesToDOT operation.
-//
-// Deprecated: Use DAGEdgesToMermaid instead.
-func DAGEdgesToDOT[T context.Context](connections ...DAGConnection[T]) (string, error) {
-	if len(connections) == 0 {
-		return "digraph DAG {\n}", nil
-	}
-	nodes, err := buildNodesFromConnections(connections)
-	if err != nil {
-		return "", err
-	}
-	return DAGToDOT(nodes...)
 }

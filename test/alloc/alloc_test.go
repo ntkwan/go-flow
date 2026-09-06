@@ -68,22 +68,6 @@ func TestAllocUnlessZeroAlloc(t *testing.T) {
 		t.Fatalf("expected 0 allocs/op for Unless, got %f", allocs)
 	}
 }
-
-func TestAllocThenZeroAlloc(t *testing.T) {
-	s1 := flow.Step[context.Context](func(ctx context.Context) error { return nil })
-	s2 := flow.Step[context.Context](func(ctx context.Context) error { return nil })
-	step := s1.Then(s2)
-	ctx := context.Background()
-
-	allocs := testing.AllocsPerRun(100, func() {
-		_ = step(ctx)
-	})
-
-	if allocs != 0 {
-		t.Fatalf("expected 0 allocs/op for Then, got %f", allocs)
-	}
-}
-
 func TestAllocWrapZeroAlloc(t *testing.T) {
 	base := flow.Step[context.Context](func(ctx context.Context) error { return nil })
 	step := base.Wrap(func(next flow.Step[context.Context]) flow.Step[context.Context] {

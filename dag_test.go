@@ -730,37 +730,6 @@ func TestDAGToMermaidEmptyAndErrors(t *testing.T) {
 	}
 }
 
-func TestDAGToDOT(t *testing.T) {
-	n1 := Node("stepA", func(ctx context.Context) error { return nil })
-	n2 := Node("stepB", func(ctx context.Context) error { return nil }).After("stepA")
-	n3 := Node("stepC", func(ctx context.Context) error { return nil })
-
-	dot, err := DAGToDOT(n1, n2, n3)
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	if !strings.HasPrefix(dot, "digraph DAG {") || !strings.HasSuffix(dot, "}") {
-		t.Fatalf("invalid DOT structure: %s", dot)
-	}
-	if !strings.Contains(dot, "\"stepA\" -> \"stepB\";") {
-		t.Fatalf("missing edge in DOT: %s", dot)
-	}
-	if !strings.Contains(dot, "\"stepC\";") {
-		t.Fatalf("missing isolated node in DOT: %s", dot)
-	}
-
-	outEmpty, err := DAGToDOT[context.Context]()
-	if err != nil || outEmpty != "digraph DAG {\n}" {
-		t.Fatalf("expected empty DOT, got %q (err=%v)", outEmpty, err)
-	}
-
-	_, err = DAGToDOT(Node[context.Context]("a", nil).After("b"))
-	if err == nil {
-		t.Fatal("expected error for missing dep, got nil")
-	}
-}
-
 func TestDAGPlan(t *testing.T) {
 	var trace []string
 	var mu sync.Mutex
@@ -784,11 +753,6 @@ func TestDAGPlan(t *testing.T) {
 	m, err := plan.ToMermaid()
 	if err != nil || !strings.Contains(m, "n1[\"n1\"] --> n2[\"n2\"]") {
 		t.Fatalf("unexpected mermaid: %q (err=%v)", m, err)
-	}
-
-	d, err := plan.ToDOT()
-	if err != nil || !strings.Contains(d, "\"n1\" -> \"n2\";") {
-		t.Fatalf("unexpected DOT: %q (err=%v)", d, err)
 	}
 
 	step := plan.Step()
@@ -829,9 +793,6 @@ func TestDAGPlan(t *testing.T) {
 	if out, err := nilPlan.ToMermaid(); err != nil || out != "graph TD" {
 		t.Fatalf("expected 'graph TD', got %q", out)
 	}
-	if out, err := nilPlan.ToDOT(); err != nil || out != "digraph DAG {\n}" {
-		t.Fatalf("expected empty DOT, got %q", out)
-	}
 }
 
 func TestDAGEdgesExport(t *testing.T) {
@@ -843,27 +804,12 @@ func TestDAGEdgesExport(t *testing.T) {
 		t.Fatalf("unexpected edges mermaid: %q (err=%v)", m, err)
 	}
 
-	d, err := DAGEdgesToDOT(Edge(f1, f2))
-	if err != nil || !strings.HasPrefix(d, "digraph DAG {") {
-		t.Fatalf("unexpected edges DOT: %q (err=%v)", d, err)
-	}
-
 	mEmpty, err := DAGEdgesToMermaid[context.Context]()
 	if err != nil || mEmpty != "graph TD" {
 		t.Fatalf("expected empty edges mermaid, got %q", mEmpty)
 	}
 
-	dEmpty, err := DAGEdgesToDOT[context.Context]()
-	if err != nil || dEmpty != "digraph DAG {\n}" {
-		t.Fatalf("expected empty edges DOT, got %q", dEmpty)
-	}
-
 	_, err = DAGEdgesToMermaid(Edge[context.Context](nil, nil))
-	if err == nil {
-		t.Fatal("expected error for nil edge, got nil")
-	}
-
-	_, err = DAGEdgesToDOT(Edge[context.Context](nil, nil))
 	if err == nil {
 		t.Fatal("expected error for nil edge, got nil")
 	}

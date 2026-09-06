@@ -162,20 +162,6 @@ func ExampleOnce() {
 	_ = pipeline(context.Background())
 }
 
-func ExampleStep_Then() {
-	s1 := flow.Step[context.Context](func(ctx context.Context) error {
-		fmt.Println("First")
-		return nil
-	})
-	s2 := flow.Step[context.Context](func(ctx context.Context) error {
-		fmt.Println("Second")
-		return nil
-	})
-
-	chained := s1.Then(s2)
-	_ = chained.Exec(context.Background())
-}
-
 func ExampleStep_Retry() {
 	attempts := 0
 	flaky := flow.Step[context.Context](func(ctx context.Context) error {

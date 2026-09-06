@@ -17,9 +17,3 @@ Feature: Sequential Pipeline
     And step 3 is never executed
     And the sequential pipeline fails with "validation error"
 
-  Scenario: Chaining steps with Then
-    Given a primary step that succeeds
-    And a chained step attached with Then
-    When the chained step is executed
-    Then both steps execute in sequence
-    And the chained execution succeeds

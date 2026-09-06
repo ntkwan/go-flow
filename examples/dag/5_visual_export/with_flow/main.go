@@ -51,13 +51,6 @@ func main() {
 	fmt.Println("Generated Mermaid Diagram:")
 	fmt.Println(mermaid)
 
-	dot, err := plan.ToDOT()
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Generated DOT Graph:")
-	fmt.Println(dot)
-
 	edgeMermaid, err := flow.DAGEdgesToMermaid(
 		flow.From(fetchUser).To(processPayment),
 		flow.From(checkInventory).To(processPayment),

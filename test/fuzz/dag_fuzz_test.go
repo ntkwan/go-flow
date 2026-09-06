@@ -57,6 +57,5 @@ func FuzzDAG(f *testing.F) {
 		_ = dagNStep(context.Background())
 
 		_, _ = flow.DAGToMermaid(nodes...)
-		_, _ = flow.DAGToDOT(nodes...)
 	})
 }
