@@ -122,19 +122,19 @@ notifyNode    := flow.Node("notify-customer", notifyCustomer).After("generate-in
 dispatchNode  := flow.Node("dispatch-warehouse", dispatchWarehouse).After("update-inventory")
 
 plan := flow.NewDAG(
-	validateNode, userNode, inventoryNode, discountNode, paymentNode,
-	updateInvNode, invoiceNode, auditNode, notifyNode, dispatchNode,
+    validateNode, userNode, inventoryNode, discountNode, paymentNode,
+    updateInvNode, invoiceNode, auditNode, notifyNode, dispatchNode,
 )
 
 // Validate graph topology before execution
 if err := plan.Validate(); err != nil {
-	log.Fatal(err)
+    log.Fatal(err)
 }
 
 // Execute as Step[T]
 workflow := plan.Step()
 if err := workflow(ctx); err != nil {
-	log.Println("Workflow failed:", err)
+    log.Println("Workflow failed:", err)
 }
 ```
 
@@ -166,16 +166,16 @@ graph TD
 | `Race` / `.Race()` | Runs steps concurrently; returns on first success and cancels losers. | [Guide](GETTING_STARTED.md#4-speculative-racing-race) · [Example](examples/race/with_flow/main.go) |
 | `DAG` / `DAGN` | Runs steps according to a directed dependency graph. | [Guide](GETTING_STARTED.md#9-dependency-graphs-dag) · [Example](examples/dag/1_named_nodes/with_flow/main.go) |
 | `DAGWithReport` | Executes DAG and collects per-node latency, status, and telemetry. | [Guide](GETTING_STARTED.md#7-dag-execution-reports--observability) · [Example](examples/dag/6_conditional_and_report/main.go) |
-| `Branch` / `When` | Runs steps conditionally based on runtime context. | [Guide](GETTING_STARTED.md#5-conditional-execution-branch-when-unless) · [Example](examples/branch/with_flow/main.go) |
-| `Dynamic` / `.Dynamic()` | Resolves and evaluates execution steps lazily at runtime. | [Guide](GETTING_STARTED.md#5-conditional-execution-branch-when-unless-dynamic) · [Example](examples/dynamic/with_flow/main.go) |
+| `Branch` / `When` | Runs steps conditionally based on runtime context. | [Guide](GETTING_STARTED.md#5-conditional--dynamic-execution-branch-when-unless-dynamic) · [Example](examples/branch/with_flow/main.go) |
+| `Dynamic` / `.Dynamic()` | Resolves and evaluates execution steps lazily at runtime. | [Guide](GETTING_STARTED.md#5-conditional--dynamic-execution-branch-when-unless-dynamic) · [Example](examples/dynamic/with_flow/main.go) |
 | `Pipe` / `PipeSeq` | Transforms typed values across steps and iterators. | [Guide](GETTING_STARTED.md#6-functional-piping-pipe-pipeseq) · [Example](examples/pipe/with_flow/main.go) |
 | `Each` / `Chunk` | Iterates over Go 1.23+ `iter.Seq` sequences or batches slices. | [Guide](GETTING_STARTED.md#7-iterators--batching-each-chunk) · [Example](examples/each/with_flow/main.go) |
 | `Once` / `.Once()` | Ensures a step executes at most once across parallel branches. | [Guide](GETTING_STARTED.md#8-idempotent-execution-once) · [Example](examples/once/with_flow/main.go) |
-| `Recovery` | Middleware converting panics into standard Go errors. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/wrap/with_flow/main.go) |
-| `.Retry()` | Retries a failing step up to $N$ attempts with backoff delay. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/retry/with_flow/main.go) |
-| `.Timeout()` | Applies a timeout deadline to step execution. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/timeout/with_flow/main.go) |
-| `.Fallback()` | Runs an alternate step if the primary step fails. | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/fallback/with_flow/main.go) |
-| `.Wrap()` | Attaches onion middleware (e.g. `Recovery()`, logging). | [Guide](GETTING_STARTED.md#1-method-chaining--error-handling) · [Example](examples/wrap/with_flow/main.go) |
+| `Recovery` | Middleware converting panics into standard Go errors. | [Guide](GETTING_STARTED.md#1-method-decorators--error-handling) · [Example](examples/wrap/with_flow/main.go) |
+| `.Retry()` | Retries a failing step up to $N$ attempts with backoff delay. | [Guide](GETTING_STARTED.md#1-method-decorators--error-handling) · [Example](examples/retry/with_flow/main.go) |
+| `.Timeout()` | Applies a timeout deadline to step execution. | [Guide](GETTING_STARTED.md#1-method-decorators--error-handling) · [Example](examples/timeout/with_flow/main.go) |
+| `.Fallback()` | Runs an alternate step if the primary step fails. | [Guide](GETTING_STARTED.md#1-method-decorators--error-handling) · [Example](examples/fallback/with_flow/main.go) |
+| `.Wrap()` | Attaches onion middleware (e.g. `Recovery()`, logging). | [Guide](GETTING_STARTED.md#1-method-decorators--error-handling) · [Example](examples/wrap/with_flow/main.go) |
 
 ---
 

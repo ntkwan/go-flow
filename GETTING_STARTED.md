@@ -7,7 +7,7 @@ A step-by-step guide to building structured concurrency workflows and dependency
 ## Table of Contents
 
 - [Core Concepts](#core-concepts)
-- [1. Method Chaining & Error Handling](#1-method-chaining--error-handling)
+- [1. Method Decorators & Error Handling](#1-method-decorators--error-handling)
 - [2. Sequential Execution (`Seq`)](#2-sequential-execution-seq)
 - [3. Concurrent Execution (`Go` and `GoN`)](#3-concurrent-execution-go-and-gon)
 - [4. Speculative Racing (`Race`)](#4-speculative-racing-race)
@@ -23,7 +23,7 @@ A step-by-step guide to building structured concurrency workflows and dependency
   - [5. Bounded Concurrency DAGs (`DAGN` / `DAGEdgesN` / `StepN`)](#5-bounded-concurrency-dags-dagn--dagedgesn--stepn)
   - [6. Composite & Resilient DAG Nodes](#6-composite--resilient-dag-nodes)
   - [7. DAG Execution Reports & Observability](#7-dag-execution-reports--observability)
-  - [8. Visual Graph Export (Mermaid & Graphviz DOT)](#8-visual-graph-export-mermaid--graphviz-dot)
+  - [8. Visual Graph Export (Mermaid)](#8-visual-graph-export-mermaid)
 - [10. Custom Contexts](#10-custom-contexts)
 - [Examples Catalog](#examples-catalog)
 
@@ -50,18 +50,18 @@ Every `Step[T]` provides receiver methods to attach timeouts, retries, fallbacks
 ```go
 validateInput := flow.Step[context.Context](validateStep)
 fetchUserData := flow.Step[context.Context](fetchUserStep).
-	Retry(3, 100*time.Millisecond).
-	Timeout(2*time.Second)
+    Retry(3, 100*time.Millisecond).
+    Timeout(2*time.Second)
 updateCache   := flow.Step[context.Context](updateCacheStep).Once()
 
 pipeline := flow.Seq(
-	validateInput,
-	fetchUserData,
-	updateCache,
+    validateInput,
+    fetchUserData,
+    updateCache,
 ).Wrap(flow.Recovery[context.Context]())
 
 if err := pipeline.Exec(ctx); err != nil {
-	log.Println("Pipeline failed:", err)
+    log.Println("Pipeline failed:", err)
 }
 ```
 
