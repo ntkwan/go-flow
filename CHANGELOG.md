@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1](https://github.com/ntkwan/go-flow/compare/v0.7.0...v0.7.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* ensure complete context consumption in dag composite example ([5d469fd](https://github.com/ntkwan/go-flow/commit/5d469fdc6d74bdbe128a24dc1558c323a4684029))
+* position execution context adjacent to workflow execution in dag example ([a701c0a](https://github.com/ntkwan/go-flow/commit/a701c0ac9e1b543bbcf7412becf0b3b6c96725b8))
+* resolve useless local variable assignment in dag example ([04d409d](https://github.com/ntkwan/go-flow/commit/04d409d6c45b11a533dd0a83936976f9fbead838))
+
 ## [0.7.0](https://github.com/ntkwan/go-flow/compare/v0.6.0...v0.7.0) (2026-09-06)
 
 
