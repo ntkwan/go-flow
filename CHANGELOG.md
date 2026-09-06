@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/ntkwan/go-flow/compare/v0.7.1...v0.8.0) (2026-09-06)
+
+
+### Features
+
+* add Recovery middleware and deprecate unidiomatic methods ([a838e09](https://github.com/ntkwan/go-flow/commit/a838e093b5957a5925e205270d71948ff209fcbe))
+
 ## [0.7.1](https://github.com/ntkwan/go-flow/compare/v0.7.0...v0.7.1) (2026-09-06)
 
 
