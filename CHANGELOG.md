@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/ntkwan/go-flow/compare/v0.8.0...v0.8.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* join goroutines in race and prevent timeout leaks ([788023f](https://github.com/ntkwan/go-flow/commit/788023fc46a4bb2ee71ef1f57a42fb16cecab24c))
+
 ## [0.8.0](https://github.com/ntkwan/go-flow/compare/v0.7.1...v0.8.0) (2026-09-06)
 
 
