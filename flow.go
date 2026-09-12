@@ -10,6 +10,16 @@ import (
 	"time"
 )
 
+// withChildContext attempts to adapt childCtx into type T.
+// If T is context.Context (or childCtx directly implements T), it performs a direct cast.
+// Otherwise, it returns parent.
+func withChildContext[T context.Context](parent T, childCtx context.Context) T {
+	if c, ok := any(childCtx).(T); ok {
+		return c
+	}
+	return parent
+}
+
 // Step represents Step.
 type Step[T context.Context] func(ctx T) error
 
@@ -31,6 +41,9 @@ func Go[T context.Context](steps ...Step[T]) Step[T] {
 		if len(steps) == 0 {
 			return nil
 		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		errs := make([]error, len(steps))
 		var hasErr atomic.Bool
 		var wg sync.WaitGroup
@@ -47,6 +60,9 @@ func Go[T context.Context](steps ...Step[T]) Step[T] {
 			}(i, step)
 		}
 		wg.Wait()
+		if ctx.Err() != nil && !hasErr.Load() {
+			return ctx.Err()
+		}
 		if !hasErr.Load() {
 			return nil
 		}
@@ -133,25 +149,21 @@ func (s Step[T]) Timeout(d time.Duration) Step[T] {
 		if s == nil {
 			return nil
 		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		timeoutCtx, cancel := context.WithTimeout(ctx, d)
 		defer cancel()
 
-		stepCtx := ctx
-		if c, ok := any(timeoutCtx).(T); ok {
-			stepCtx = c
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- s(stepCtx)
-		}()
-
-		select {
-		case <-timeoutCtx.Done():
-			return timeoutCtx.Err()
-		case err := <-done:
+		stepCtx := withChildContext(ctx, timeoutCtx)
+		err := s(stepCtx)
+		if err != nil {
 			return err
 		}
+		if timeoutCtx.Err() != nil {
+			return timeoutCtx.Err()
+		}
+		return nil
 	}
 }
 

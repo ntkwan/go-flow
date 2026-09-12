@@ -18,6 +18,9 @@ func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 		return Go(steps...)
 	}
 	return func(ctx T) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		n := len(steps)
 		errs := make([]error, n)
 		var hasErr atomic.Bool
@@ -31,6 +34,9 @@ func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 			go func() {
 				defer wg.Done()
 				for {
+					if ctx.Err() != nil {
+						return
+					}
 					idx := int(taskIdx.Add(1) - 1)
 					if idx >= n {
 						return
@@ -45,6 +51,9 @@ func GoN[T context.Context](limit int, steps ...Step[T]) Step[T] {
 			}()
 		}
 		wg.Wait()
+		if ctx.Err() != nil && !hasErr.Load() {
+			return ctx.Err()
+		}
 		if !hasErr.Load() {
 			return nil
 		}
@@ -58,35 +67,48 @@ func Race[T context.Context](steps ...Step[T]) Step[T] {
 		if len(steps) == 0 {
 			return nil
 		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		raceCtx, cancel := context.WithCancelCause(ctx)
 		defer cancel(nil)
 
-		stepCtx := ctx
-		if c, ok := any(raceCtx).(T); ok {
-			stepCtx = c
-		}
+		stepCtx := withChildContext(ctx, raceCtx)
 
-		resultCh := make(chan error, len(steps))
-		for _, step := range steps {
-			s := step
-			go func() {
-				resultCh <- s(stepCtx)
-			}()
-		}
+		var wg sync.WaitGroup
+		errs := make([]error, len(steps))
+		var hasSuccess atomic.Bool
 
-		var errs []error
-		for range steps {
-			select {
-			case <-ctx.Done():
-				return context.Cause(ctx)
-			case err := <-resultCh:
-				if err == nil {
-					cancel(nil)
-					return nil
+		wg.Add(len(steps))
+		for i, step := range steps {
+			go func(idx int, s Step[T]) {
+				defer wg.Done()
+				if s == nil {
+					return
 				}
-				errs = append(errs, err)
-			}
+				err := s(stepCtx)
+				if err == nil {
+					hasSuccess.Store(true)
+					cancel(nil)
+				} else {
+					errs[idx] = err
+				}
+			}(i, step)
 		}
+
+		wg.Wait()
+
+		if ctx.Err() != nil && !hasSuccess.Load() {
+			if cause := context.Cause(ctx); cause != nil {
+				return cause
+			}
+			return ctx.Err()
+		}
+
+		if hasSuccess.Load() {
+			return nil
+		}
+
 		return errors.Join(errs...)
 	}
 }

@@ -209,6 +209,56 @@ func TestRaceParentContextCanceled(t *testing.T) {
 	}
 }
 
+func TestRaceWaitsForLosers(t *testing.T) {
+	var loserExited atomic.Bool
+
+	step := Race(
+		func(ctx context.Context) error {
+			time.Sleep(5 * time.Millisecond)
+			return nil
+		},
+		func(ctx context.Context) error {
+			<-ctx.Done()
+			time.Sleep(20 * time.Millisecond)
+			loserExited.Store(true)
+			return ctx.Err()
+		},
+	)
+
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error from race, got %v", err)
+	}
+
+	if !loserExited.Load() {
+		t.Fatal("expected Race to block until loser goroutine has fully completed cleanup")
+	}
+}
+
+func TestRaceCustomContext(t *testing.T) {
+	ctx := &customContext{
+		Context:   context.Background(),
+		CustomVal: "race-custom",
+	}
+
+	step := Race[*customContext](
+		func(c *customContext) error {
+			if c.CustomVal != "race-custom" {
+				t.Errorf("expected custom val 'race-custom', got %q", c.CustomVal)
+			}
+			time.Sleep(10 * time.Millisecond)
+			return nil
+		},
+		func(c *customContext) error {
+			time.Sleep(50 * time.Millisecond)
+			return nil
+		},
+	)
+
+	if err := step(ctx); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
 func TestEachEmpty(t *testing.T) {
 	var count int
 	seq := slices.Values([]int{})

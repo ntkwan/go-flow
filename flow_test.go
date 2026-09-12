@@ -344,6 +344,32 @@ func TestStepMethodTimeout(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
 	}
+
+	preCanceledCtx, preCancel := context.WithCancel(context.Background())
+	preCancel()
+	if err := fastStep(preCanceledCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for pre-canceled timeout step, got %v", err)
+	}
+}
+
+func TestStepTimeoutCustomContext(t *testing.T) {
+	ctx := &customContext{
+		Context:   context.Background(),
+		CustomVal: "my-custom-value",
+	}
+
+	step := Step[*customContext](func(c *customContext) error {
+		if c.CustomVal != "my-custom-value" {
+			t.Errorf("expected custom val preserved, got %q", c.CustomVal)
+		}
+		time.Sleep(25 * time.Millisecond)
+		return nil
+	}).Timeout(10 * time.Millisecond)
+
+	err := step(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded for custom context, got %v", err)
+	}
 }
 
 func TestStepMethodRetry(t *testing.T) {

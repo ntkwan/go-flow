@@ -151,4 +151,22 @@ func TestLeakWorkflows(t *testing.T) {
 
 		_ = step(ctxCancel)
 	})
+
+	t.Run("Race 10k goroutines cancellation zero leak", func(t *testing.T) {
+		const total = 10_000
+		steps := make([]flow.Step[context.Context], total)
+		for i := 0; i < total; i++ {
+			if i == 5000 {
+				steps[i] = func(ctx context.Context) error {
+					return nil
+				}
+			} else {
+				steps[i] = func(ctx context.Context) error {
+					<-ctx.Done()
+					return ctx.Err()
+				}
+			}
+		}
+		_ = flow.Race(steps...)(ctx)
+	})
 }

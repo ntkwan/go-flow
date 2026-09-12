@@ -145,3 +145,57 @@ func TestStressParallelWorkflowExecution(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestStressRace10kGoroutinesCancellation(t *testing.T) {
+	const totalShards = 10_000
+	const targetShard = 7_777
+
+	var canceledCount atomic.Int64
+	var winnerExecuted atomic.Bool
+	var foundValue atomic.Pointer[string]
+
+	steps := make([]flow.Step[context.Context], totalShards)
+	for i := 0; i < totalShards; i++ {
+		shardID := i
+		if shardID == targetShard {
+			// The winning shard: finds item and returns nil
+			steps[shardID] = func(ctx context.Context) error {
+				val := "item-7777"
+				foundValue.Store(&val)
+				winnerExecuted.Store(true)
+				return nil
+			}
+		} else {
+			// The 9,999 slow shards: wait until cancellation is signaled by the winner
+			steps[shardID] = func(ctx context.Context) error {
+				<-ctx.Done()
+				canceledCount.Add(1)
+				return ctx.Err()
+			}
+		}
+	}
+
+	searchFlow := flow.Race(steps...)
+	start := time.Now()
+
+	err := searchFlow(context.Background())
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("expected race search to succeed, got: %v", err)
+	}
+
+	if !winnerExecuted.Load() {
+		t.Fatal("expected target shard to execute and find item")
+	}
+
+	if foundValue.Load() == nil || *foundValue.Load() != "item-7777" {
+		t.Fatalf("expected found value 'item-7777', got %v", foundValue.Load())
+	}
+
+	if canceledCount.Load() != int64(totalShards-1) {
+		t.Fatalf("expected %d sibling shards to receive cancellation, got %d", totalShards-1, canceledCount.Load())
+	}
+
+	t.Logf("10k Goroutines Speculative Search: Finished in %v with all %d goroutines cleanly canceled", elapsed, canceledCount.Load())
+}
