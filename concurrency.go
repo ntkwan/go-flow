@@ -99,10 +99,7 @@ func Race[T context.Context](steps ...Step[T]) Step[T] {
 		wg.Wait()
 
 		if ctx.Err() != nil && !hasSuccess.Load() {
-			if cause := context.Cause(ctx); cause != nil {
-				return cause
-			}
-			return ctx.Err()
+			return context.Cause(ctx)
 		}
 
 		if hasSuccess.Load() {

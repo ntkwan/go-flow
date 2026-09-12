@@ -134,6 +134,40 @@ func TestGoNError(t *testing.T) {
 	}
 }
 
+func TestGoNPreCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	step := GoN(1, func(c context.Context) error { return nil }, func(c context.Context) error { return nil })
+	if err := step(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for pre-canceled GoN, got %v", err)
+	}
+}
+
+func TestGoNCanceledDuringExecution(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	step := GoN(2,
+		func(c context.Context) error {
+			cancel()
+			time.Sleep(10 * time.Millisecond)
+			return nil
+		},
+		func(c context.Context) error {
+			time.Sleep(20 * time.Millisecond)
+			return nil
+		},
+		func(c context.Context) error {
+			time.Sleep(20 * time.Millisecond)
+			return nil
+		},
+	)
+
+	if err := step(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for GoN canceled mid-flight, got %v", err)
+	}
+}
+
 func TestRaceEmpty(t *testing.T) {
 	step := Race[context.Context]()
 	if err := step(context.Background()); err != nil {
@@ -256,6 +290,31 @@ func TestRaceCustomContext(t *testing.T) {
 
 	if err := step(ctx); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestRaceWithNilStep(t *testing.T) {
+	var nilStep Step[context.Context]
+	step := Race(
+		nilStep,
+		func(ctx context.Context) error { return nil },
+	)
+	if err := step(context.Background()); err != nil {
+		t.Fatalf("expected nil error for race with nil step, got %v", err)
+	}
+}
+
+func TestRaceMidFlightContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	step := Race(
+		func(c context.Context) error {
+			cancel()
+			<-c.Done()
+			return c.Err()
+		},
+	)
+	if err := step(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for race canceled mid-flight, got %v", err)
 	}
 }
 

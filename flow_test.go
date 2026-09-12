@@ -189,6 +189,36 @@ func TestGoConcurrency(t *testing.T) {
 	}
 }
 
+func TestGoPreCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	step := Go(func(c context.Context) error { return nil })
+	if err := step(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for pre-canceled Go, got %v", err)
+	}
+}
+
+func TestGoCanceledDuringExecution(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	step := Go(
+		func(c context.Context) error {
+			cancel()
+			time.Sleep(10 * time.Millisecond)
+			return nil
+		},
+		func(c context.Context) error {
+			time.Sleep(20 * time.Millisecond)
+			return nil
+		},
+	)
+
+	if err := step(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for Go canceled mid-flight, got %v", err)
+	}
+}
+
 func TestStepMethodExec(t *testing.T) {
 	var step Step[context.Context]
 	if err := step.Exec(context.Background()); err != nil {
